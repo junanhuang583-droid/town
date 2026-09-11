@@ -16,10 +16,10 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   app.appendChild(renderer.domElement);
 
   const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.1, 5000);
-  camera.position.set(118, 94, 142);
 
   const controls = new OrbitControls(camera, renderer.domElement);
-  controls.target.set(0, 10, 8);
+  const blueprintTarget = new THREE.Vector3(6, 10, 14);
+  controls.target.copy(blueprintTarget);
   controls.enableDamping = true;
   controls.dampingFactor = 0.07;
   controls.enablePan = true;
@@ -290,12 +290,12 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   ribbon([[-54,23],[-38,22],[-22,23],[-7,23],[5,20],[15,16]], 3.8, MID_Y + 0.68, C.road);
 
   // Plaza sits to the right of the six blocks, as in the blueprint.
-  cylinder(12.5, 12.5, 0.6, C.plaza, 18, MID_Y + 0.85, 9, 48);
-  cylinder(4.1, 4.1, 0.9, C.block2, 18, MID_Y + 1.45, 9, 40);
-  cylinder(1.45, 1.45, 5.2, C.block2, 18, MID_Y + 4.0, 9, 24);
+  cylinder(12.5, 12.5, 0.6, C.plaza, 16, MID_Y + 0.85, 8, 48);
+  cylinder(4.1, 4.1, 0.9, C.block2, 16, MID_Y + 1.45, 8, 40);
+  cylinder(1.45, 1.45, 5.2, C.block2, 16, MID_Y + 4.0, 8, 24);
 
   // Middle-to-low stair centered below the plaza.
-  stairs(18, 27.5, 5.4, 15.5, 14, MID_Y + 0.35, LOW_Y + 0.9, true);
+  stairs(16, 27.0, 5.4, 15.5, 14, MID_Y + 0.35, LOW_Y + 0.9, true);
 
   // ------------------------------------------------------------
   // Low coast: continuous boardwalk, beach path, pier
@@ -365,10 +365,18 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     return b;
   }
 
-  addButton('默认', () => {
-    camera.position.set(118, 94, 142);
-    controls.target.set(0, 10, 8);
+  function setBlueprintView() {
+    const aspect = window.innerWidth / window.innerHeight;
+    const distance = aspect < 0.62 ? 430 : aspect < 0.85 ? 365 : aspect < 1.15 ? 315 : 285;
+    const dir = new THREE.Vector3(0.57, 0.50, 0.65).normalize();
+
+    controls.target.copy(blueprintTarget);
+    camera.position.copy(blueprintTarget).addScaledVector(dir, distance);
     controls.update();
+  }
+
+  addButton('默认', () => {
+    setBlueprintView();
   });
 
   addButton('俯视', () => {
@@ -440,12 +448,19 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     }
   }
 
+  let firstLayout = true;
+
   function resize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     updateZoomLimits();
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    if (firstLayout) {
+      setBlueprintView();
+      firstLayout = false;
+    }
   }
 
   window.addEventListener('resize', resize);
