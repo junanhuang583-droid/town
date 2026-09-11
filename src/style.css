@@ -5,22 +5,16 @@ html, body, #app {
   overflow: hidden;
 }
 
-:root {
-  font-family: Inter, ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, -apple-system, sans-serif;
-  color: #34515a;
-  background: #70c7dc;
-}
-
 * { box-sizing: border-box; }
 
 body {
+  background:
+    radial-gradient(circle at 50% 35%, rgba(116, 211, 225, .28), transparent 36%),
+    linear-gradient(180deg, #0d4853 0%, #0b3b45 100%);
   overscroll-behavior: none;
+  touch-action: none;
   user-select: none;
   -webkit-user-select: none;
-  touch-action: none;
-  background:
-    radial-gradient(circle at 78% 15%, rgba(255,255,255,.24), transparent 30%),
-    linear-gradient(180deg, #9be1ed 0%, #66c4da 100%);
 }
 
 #app { position: relative; }
@@ -39,75 +33,21 @@ body {
   position: absolute;
   left: 0;
   top: 0;
-  width: 1600px;
-  height: 1000px;
+  width: 1800px;
+  height: 1180px;
   transform-origin: 0 0;
   will-change: transform;
+  filter: drop-shadow(0 18px 28px rgba(0, 28, 34, .22));
 }
 
-.town-map {
+.map-image {
   display: block;
-  width: 1600px;
-  height: 1000px;
-  overflow: visible;
-  background: #68c7dd;
+  width: 1800px;
+  height: 1180px;
+  pointer-events: none;
+  -webkit-user-drag: none;
 }
 
-.map-label {
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: .04em;
-  fill: #37545a;
-  paint-order: stroke;
-  stroke: rgba(248, 246, 231, .95);
-  stroke-width: 7px;
-  stroke-linejoin: round;
-}
-
-.water-sparkles {
-  animation: water-drift 9s linear infinite;
-  transform-origin: center;
-}
-
-.foam {
-  animation: foam-breathe 3.5s ease-in-out infinite alternate;
-}
-
-.foliage > g {
-  transform-box: fill-box;
-  transform-origin: bottom center;
-  animation: tree-sway 4.8s ease-in-out infinite alternate;
-}
-
-.foliage > g:nth-child(even) { animation-delay: -2.1s; }
-.foliage > g:nth-child(3n) { animation-duration: 5.6s; }
-
-.flowers {
-  animation: flower-breathe 3s ease-in-out infinite alternate;
-  transform-origin: center;
-}
-
-@keyframes water-drift {
-  0% { transform: translateX(0); }
-  50% { transform: translateX(14px); }
-  100% { transform: translateX(0); }
-}
-
-@keyframes foam-breathe {
-  from { opacity: .48; }
-  to { opacity: .82; }
-}
-
-@keyframes tree-sway {
-  from { transform: rotate(-.8deg); }
-  to { transform: rotate(.9deg); }
-}
-
-@keyframes flower-breathe {
-  from { opacity: .75; }
-  to { opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .water-sparkles, .foam, .foliage > g, .flowers { animation: none; }
+@media (max-width: 700px) {
+  .map-stage { filter: drop-shadow(0 12px 22px rgba(0, 28, 34, .2)); }
 }
