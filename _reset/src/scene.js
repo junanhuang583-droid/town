@@ -93,6 +93,80 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     return m;
   }
 
+  function gableRoof(w, d, h, color, x, y, z, rot = 0, ridgeAlongX = true) {
+    const rw = ridgeAlongX ? w : d;
+    const rd = ridgeAlongX ? d : w;
+    const verts = [
+      -rw/2, 0, -rd/2,   rw/2, 0, -rd/2,
+      -rw/2, 0,  rd/2,   rw/2, 0,  rd/2,
+      -rw/2, h, 0,       rw/2, h, 0
+    ];
+    const idx = [
+      0,1,4, 1,5,4,
+      2,4,3, 3,4,5,
+      0,4,2,
+      1,3,5,
+      0,2,1, 1,2,3
+    ];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+
+    const m = new THREE.Mesh(g, toon(color));
+    m.position.set(x, y, z);
+    m.rotation.y = rot + (ridgeAlongX ? 0 : Math.PI / 2);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    scene.add(m);
+    return m;
+  }
+
+  function hipRoof(w, d, h, color, x, y, z, rot = 0) {
+    const g = new THREE.ConeGeometry(Math.max(w, d) * 0.72, h, 4);
+    const m = new THREE.Mesh(g, toon(color));
+    m.position.set(x, y + h * 0.5, z);
+    m.rotation.y = Math.PI / 4 + rot;
+    m.scale.set(w / Math.max(w, d), 1, d / Math.max(w, d));
+    m.castShadow = true;
+    m.receiveShadow = true;
+    scene.add(m);
+    return m;
+  }
+
+  function whiteBuilding({
+    x, z, w, d, bodyH, baseY, rot = 0,
+    roof = 'gable', roofH = 2.6, ridgeAlongX = true,
+    annex = null
+  }) {
+    box(w, bodyH, d, C.block, x, baseY + bodyH / 2, z, rot);
+
+    if (roof === 'hip') {
+      hipRoof(w * 1.08, d * 1.08, roofH, C.block2, x, baseY + bodyH, z, rot);
+    } else {
+      gableRoof(w * 1.08, d * 1.08, roofH, C.block2, x, baseY + bodyH, z, rot, ridgeAlongX);
+    }
+
+    if (annex) {
+      const ax = x + annex.dx;
+      const az = z + annex.dz;
+      box(annex.w, annex.h, annex.d, C.block2, ax, baseY + annex.h / 2, az, rot);
+      if (annex.roof !== false) {
+        gableRoof(
+          annex.w * 1.06,
+          annex.d * 1.06,
+          annex.roofH || 1.5,
+          C.block2,
+          ax,
+          baseY + annex.h,
+          az,
+          rot,
+          annex.ridgeAlongX !== false
+        );
+      }
+    }
+  }
+
   function prism(points, bottomY, topY, color) {
     const contour = points.map(([x, z]) => new THREE.Vector2(x, z));
     const faces = THREE.ShapeUtils.triangulateShape(contour, []);
@@ -256,10 +330,28 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   box(9, 10, 9, C.cliffLight, -64, TOP_Y - 1.5, -46.5);
   box(8, 8, 7, C.cliffLight, -60, MID_Y + 4.0, -24.5);
 
-  // station and two small upper houses
-  box(16, 7, 9, C.block2, -33, TOP_Y + 4.1, -35);
-  box(8, 5.5, 7.5, C.block, 8, TOP_Y + 3.4, -31.5);
-  box(8.5, 5.5, 7.5, C.block, 27, TOP_Y + 3.4, -31.0);
+  // station white model: main hall + side wing + platform canopy
+  whiteBuilding({
+    x:-33, z:-35, w:16, d:9, bodyH:6.6, baseY:TOP_Y + 0.6,
+    roof:'gable', roofH:3.0, ridgeAlongX:true,
+    annex:{ dx:-9.4, dz:0.8, w:7.5, d:6.5, h:4.2, roofH:1.8 }
+  });
+  box(18, 0.7, 3.0, C.block2, -31.5, TOP_Y + 4.8, -40.0);
+  box(0.35, 3.6, 0.35, C.block2, -38, TOP_Y + 2.8, -40.0);
+  box(0.35, 3.6, 0.35, C.block2, -31.5, TOP_Y + 2.8, -40.0);
+  box(0.35, 3.6, 0.35, C.block2, -25, TOP_Y + 2.8, -40.0);
+
+  // two small upper cottages
+  whiteBuilding({
+    x:8, z:-31.5, w:8, d:7.5, bodyH:4.8, baseY:TOP_Y + 0.6,
+    roof:'gable', roofH:2.3, ridgeAlongX:false,
+    annex:{ dx:3.7, dz:2.6, w:3.4, d:3.0, h:2.5, roofH:1.2 }
+  });
+  whiteBuilding({
+    x:27, z:-31.0, w:8.5, d:7.5, bodyH:4.9, baseY:TOP_Y + 0.6,
+    roof:'hip', roofH:2.4,
+    annex:{ dx:-3.7, dz:2.5, w:3.2, d:3.0, h:2.4, roofH:1.1 }
+  });
 
   ribbon([[-58,-37],[-41,-36],[-24,-35],[-5,-34],[14,-33],[31,-33]], 4.7, TOP_Y + 0.7, C.road);
 
@@ -270,19 +362,44 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   // ------------------------------------------------------------
   // Middle plateau: six simple blocks and central circular plaza
   // ------------------------------------------------------------
-  const H = MID_Y + 3.2;
-  const townBlocks = [
-    [-46, -2, 13, 9],
-    [-28, -1, 12, 9],
-    [-9,  0, 16, 10],
-    [-47, 14, 12, 9],
-    [-28, 15, 14, 10],
-    [-9, 16, 15, 10]
-  ];
+  const townBaseY = MID_Y + 0.55;
 
-  for (const [x,z,w,d] of townBlocks) {
-    box(w, 6.2, d, C.block, x, H, z);
-  }
+  // six resort-building white models, intentionally varied in massing
+  whiteBuilding({
+    x:-46, z:-2, w:13, d:9, bodyH:6.4, baseY:townBaseY,
+    roof:'gable', roofH:2.8, ridgeAlongX:true,
+    annex:{ dx:-5.6, dz:2.8, w:4.0, d:4.6, h:3.1, roofH:1.4 }
+  });
+
+  whiteBuilding({
+    x:-28, z:-1, w:12, d:9, bodyH:5.4, baseY:townBaseY,
+    roof:'hip', roofH:2.5,
+    annex:{ dx:4.6, dz:2.7, w:3.5, d:4.0, h:2.7, roof:false }
+  });
+
+  whiteBuilding({
+    x:-9, z:0, w:16, d:10, bodyH:6.8, baseY:townBaseY,
+    roof:'gable', roofH:3.1, ridgeAlongX:true,
+    annex:{ dx:6.5, dz:3.2, w:4.2, d:4.5, h:3.2, roofH:1.5 }
+  });
+
+  whiteBuilding({
+    x:-47, z:14, w:12, d:9, bodyH:5.7, baseY:townBaseY,
+    roof:'hip', roofH:2.6,
+    annex:{ dx:-4.8, dz:-2.8, w:3.4, d:3.8, h:2.6, roof:false }
+  });
+
+  whiteBuilding({
+    x:-28, z:15, w:14, d:10, bodyH:6.1, baseY:townBaseY,
+    roof:'gable', roofH:2.9, ridgeAlongX:false,
+    annex:{ dx:5.5, dz:-3.1, w:4.0, d:4.1, h:3.0, roofH:1.3, ridgeAlongX:false }
+  });
+
+  whiteBuilding({
+    x:-9, z:16, w:15, d:10, bodyH:5.8, baseY:townBaseY,
+    roof:'hip', roofH:2.7,
+    annex:{ dx:-5.8, dz:-3.0, w:3.8, d:4.2, h:2.8, roof:false }
+  });
 
   // Main circulation, deliberately simple.
   ribbon([[-57,-9],[-44,-8],[-28,-8],[-12,-7],[4,-5],[17,-1]], 3.8, MID_Y + 0.68, C.road);
@@ -310,11 +427,26 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   ribbon([[46,32],[57,32],[69,32],[81,32],[92,32]], 4.0, 1.55, C.wood);
   box(13, 0.46, 8, C.wood, 97, 1.55, 32);
 
+  // pier house white model near the inner pier
+  whiteBuilding({
+    x:61, z:27.5, w:8.5, d:6.2, bodyH:4.4, baseY:1.5,
+    roof:'gable', roofH:2.2, ridgeAlongX:true,
+    annex:{ dx:3.8, dz:1.8, w:2.6, d:2.8, h:2.0, roof:false }
+  });
+
   // lighthouse bridge / path
   ribbon([[45,49],[49,55],[54,61],[60,66]], 3.8, LOW_Y + 0.95, C.road);
 
-  cylinder(2.9, 3.9, 13.5, C.block, 65, LOW_Y + 7.6, 68, 30);
-  cylinder(3.6, 3.6, 1.2, C.block2, 65, LOW_Y + 14.6, 68, 30);
+  // lighthouse white model: base, tapered tower, gallery, lantern room, cap
+  cylinder(4.8, 4.8, 1.5, C.block2, 65, LOW_Y + 1.8, 68, 32);
+  cylinder(2.8, 4.2, 12.8, C.block, 65, LOW_Y + 8.5, 68, 32);
+  cylinder(4.0, 4.0, 0.8, C.block2, 65, LOW_Y + 15.2, 68, 32);
+  cylinder(2.5, 2.5, 2.5, C.block2, 65, LOW_Y + 16.8, 68, 24);
+  const lighthouseCap = new THREE.Mesh(new THREE.ConeGeometry(3.4, 2.2, 24), toon(C.block2));
+  lighthouseCap.position.set(65, LOW_Y + 19.15, 68);
+  lighthouseCap.castShadow = true;
+  lighthouseCap.receiveShadow = true;
+  scene.add(lighthouseCap);
 
   // Only a few rocks to explain coast outline.
   const rocks = [
