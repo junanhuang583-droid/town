@@ -72,7 +72,7 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     fence: 0x7a604a
   };
 
-  const toon = (color) => new THREE.MeshToonMaterial({ color });
+  const toon = (color) => new THREE.MeshToonMaterial({ color, side: THREE.DoubleSide });
 
   function box(w, h, d, color, x, y, z, rot = 0) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), toon(color));
