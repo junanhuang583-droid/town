@@ -1,6 +1,4 @@
-import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import './style.css';
-import { createTownScene } from './townScene.js';
+import { createTownMap } from './townMap2d.js';
 
-createTownScene(THREE, OrbitControls, document.querySelector('#app'));
+createTownMap(document.querySelector('#app'));
