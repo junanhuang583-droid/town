@@ -252,6 +252,47 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     }
   }
 
+  function segmentBeam(x1, z1, x2, z2, height, thickness, y, color) {
+    const dx = x2 - x1;
+    const dz = z2 - z1;
+    const len = Math.hypot(dx, dz);
+    const rot = -Math.atan2(dz, dx);
+    return box(
+      len,
+      height,
+      thickness,
+      color,
+      (x1 + x2) / 2,
+      y,
+      (z1 + z2) / 2,
+      rot
+    );
+  }
+
+  function retainingWall(points, baseY, topY, thickness = 0.65) {
+    const h = Math.max(0.2, topY - baseY);
+    const cy = baseY + h / 2;
+    for (let i = 0; i < points.length - 1; i++) {
+      const [x1, z1] = points[i];
+      const [x2, z2] = points[i + 1];
+      segmentBeam(x1, z1, x2, z2, h, thickness, cy, C.block2);
+    }
+  }
+
+  function landing(x, z, w, d, y) {
+    box(w, 0.45, d, C.road, x, y, z);
+  }
+
+  function ringRoad(innerR, outerR, y, x, z) {
+    const g = new THREE.RingGeometry(innerR, outerR, 48);
+    const m = new THREE.Mesh(g, toon(C.road));
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(x, y, z);
+    m.receiveShadow = true;
+    scene.add(m);
+    return m;
+  }
+
   const water = new THREE.Mesh(
     new THREE.PlaneGeometry(3000, 3000),
     new THREE.MeshToonMaterial({ color: C.ocean })
@@ -359,6 +400,17 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   stairs(-29, -19.5, 5.3, 16.5, 16, MID_Y + 0.9, TOP_Y + 0.35, false);
   stairs(11, -17.0, 5.0, 14.0, 14, MID_Y + 0.9, TOP_Y + 0.35, false);
 
+  // Stair landings make the vertical connections read as actual playable routes.
+  landing(-29, -27.2, 6.8, 4.0, TOP_Y + 0.68);
+  landing(-29, -11.8, 6.8, 4.2, MID_Y + 0.68);
+  landing(11, -23.2, 6.5, 4.0, TOP_Y + 0.68);
+  landing(11, -10.9, 6.5, 4.0, MID_Y + 0.68);
+
+  // Clean retaining-wall runs on the front of the upper terrace, interrupted at stairs.
+  retainingWall([[-55,-24],[-42,-21.5],[-34,-20.8]], MID_Y + 1.0, TOP_Y - 0.3);
+  retainingWall([[-24,-20.0],[-10,-19.4],[4,-19.1]], MID_Y + 1.0, TOP_Y - 0.3);
+  retainingWall([[18,-19.1],[31,-21.0],[43,-25.0]], MID_Y + 1.0, TOP_Y - 0.3);
+
   // ------------------------------------------------------------
   // Middle plateau: six simple blocks and central circular plaza
   // ------------------------------------------------------------
@@ -401,18 +453,30 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     annex:{ dx:-5.8, dz:-3.0, w:3.8, d:4.2, h:2.8, roof:false }
   });
 
-  // Main circulation, deliberately simple.
-  ribbon([[-57,-9],[-44,-8],[-28,-8],[-12,-7],[4,-5],[17,-1]], 3.8, MID_Y + 0.68, C.road);
-  ribbon([[-57,8],[-44,8],[-28,9],[-12,10],[2,10],[15,8]], 3.8, MID_Y + 0.68, C.road);
-  ribbon([[-54,23],[-38,22],[-22,23],[-7,23],[5,20],[15,16]], 3.8, MID_Y + 0.68, C.road);
+  // Main circulation now reads as one connected playable street network.
+  ribbon([[-57,-9],[-44,-8],[-28,-8],[-12,-7],[4,-5],[17,-1]], 4.0, MID_Y + 0.68, C.road);
+  ribbon([[-57,8],[-44,8],[-28,9],[-12,10],[2,10],[12,9]], 4.0, MID_Y + 0.68, C.road);
+  ribbon([[-54,23],[-38,22],[-22,23],[-7,23],[5,20],[12,15]], 4.0, MID_Y + 0.68, C.road);
+
+  // Two north-south connectors stop the shop rows from reading as isolated strips.
+  ribbon([[-39,-8],[-39,0],[-39,8],[-39,20]], 3.4, MID_Y + 0.69, C.road, 32);
+  ribbon([[-19,-7],[-18,1],[-18,10],[-17,22]], 3.4, MID_Y + 0.69, C.road, 32);
 
   // Plaza sits to the right of the six blocks, as in the blueprint.
   cylinder(12.5, 12.5, 0.6, C.plaza, 16, MID_Y + 0.85, 8, 48);
+  ringRoad(13.0, 16.0, MID_Y + 0.69, 16, 8);
+  ribbon([[12,9],[14,9],[16,9]], 4.0, MID_Y + 0.70, C.road, 16);
   cylinder(4.1, 4.1, 0.9, C.block2, 16, MID_Y + 1.45, 8, 40);
   cylinder(1.45, 1.45, 5.2, C.block2, 16, MID_Y + 4.0, 8, 24);
 
-  // Middle-to-low stair centered below the plaza.
+  // Middle-to-low stair centered below the plaza, with proper landings.
   stairs(16, 27.0, 5.4, 15.5, 14, MID_Y + 0.35, LOW_Y + 0.9, true);
+  landing(16, 20.0, 7.0, 4.0, MID_Y + 0.69);
+  landing(16, 34.2, 7.0, 4.2, LOW_Y + 0.72);
+
+  // Selected retaining wall along the town's front edge, leaving the stair opening clear.
+  retainingWall([[-57,22],[-42,25],[-25,26.5],[-5,26.0],[8,23.5]], LOW_Y + 0.8, MID_Y - 0.35);
+  retainingWall([[24,18.0],[29,14.0],[33,8.5]], LOW_Y + 0.8, MID_Y - 0.35);
 
   // ------------------------------------------------------------
   // Low coast: continuous boardwalk, beach path, pier
@@ -420,12 +484,27 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   ribbon([[-59,29],[-48,32],[-35,35],[-20,37],[-5,38],[10,38],[23,35],[33,31]], 4.2, LOW_Y + 0.75, C.wood);
   ribbon([[33,31],[37,36],[41,42],[45,49]], 3.9, LOW_Y + 0.75, C.wood);
 
+  // Sparse structural supports make the boardwalk read as elevated construction.
+  for (const [x,z] of [[-49,32],[-31,36],[-12,38],[8,38],[27,34],[39,39]]) {
+    box(0.7, LOW_Y + 0.7, 0.7, C.block2, x, (LOW_Y + 0.7)/2, z);
+  }
+
   // beach-side wooden path
   ribbon([[36,2],[40,9],[43,17],[45,25],[46,32]], 3.5, 1.55, C.wood);
 
-  // pier extends rightward
+  // Structural tide-pool placeholders, still blockout geometry only.
+  cylinder(4.6, 5.2, 0.18, C.ocean, 55, 1.24, 8, 28);
+  cylinder(3.2, 3.8, 0.16, C.ocean, 61, 1.22, 18, 24);
+
+  // pier extends rightward and finishes in a wider end platform.
   ribbon([[46,32],[57,32],[69,32],[81,32],[92,32]], 4.0, 1.55, C.wood);
-  box(13, 0.46, 8, C.wood, 97, 1.55, 32);
+  box(15, 0.46, 9, C.wood, 98, 1.55, 32);
+
+  // Pier posts below the main axis and terminal platform.
+  for (const x of [50,60,70,80,90,96,101]) {
+    box(0.65, 1.45, 0.65, C.block2, x, 0.75, 30.7);
+    box(0.65, 1.45, 0.65, C.block2, x, 0.75, 33.3);
+  }
 
   // pier house white model near the inner pier
   whiteBuilding({
@@ -434,8 +513,11 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     annex:{ dx:3.8, dz:1.8, w:2.6, d:2.8, h:2.0, roof:false }
   });
 
-  // lighthouse bridge / path
+  // lighthouse bridge / path, now with a landing and an island approach loop.
   ribbon([[45,49],[49,55],[54,61],[60,66]], 3.8, LOW_Y + 0.95, C.road);
+  landing(45.5, 49.5, 6.0, 5.0, LOW_Y + 0.96);
+  ribbon([[60,66],[63,66],[65,67],[65,68]], 3.5, LOW_Y + 1.05, C.road, 18);
+  ringRoad(6.0, 8.2, LOW_Y + 1.04, 65, 68);
 
   // lighthouse white model: base, tapered tower, gallery, lantern room, cap
   cylinder(4.8, 4.8, 1.5, C.block2, 65, LOW_Y + 1.8, 68, 32);
