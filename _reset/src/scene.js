@@ -453,54 +453,58 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   const TOP_Y = 24.0;
 
   // ------------------------------------------------------------
-  // LEVEL 1: narrow coastal shelf following the front edge
+  // ONE CONTINUOUS MAIN ISLAND
+  // The three heights are nested terraces on the same landmass:
+  // baseIsland ⊃ midPlateau ⊃ topPlateau.
   // ------------------------------------------------------------
-  const lowShelf = [
-    [-62, 27], [-51, 31], [-38, 35], [-23, 38], [-7, 40], [8, 40],
-    [21, 38], [31, 34], [36, 29], [34, 25], [24, 23], [10, 22],
-    [-8, 22], [-27, 23], [-45, 24], [-57, 25]
+  const baseIsland = [
+    [-72,-58],[-52,-62],[-28,-63],[-4,-62],[20,-59],[40,-54],
+    [54,-46],[60,-36],[60,-25],[56,-15],[52,-7],[49,2],
+    [46,12],[43,22],[39,30],[31,37],[19,42],[4,45],
+    [-13,45],[-31,43],[-47,39],[-59,33],[-67,25],[-71,15],
+    [-73,4],[-73,-10],[-72,-25],[-72,-42]
   ];
-  prism(lowShelf, 0.25, LOW_Y, C.cliffLight);
-  topSlab(lowShelf, LOW_Y + 0.5, 0.5, C.lowGrass);
+  prism(baseIsland, 0.25, LOW_Y, C.cliffLight);
+  topSlab(baseIsland, LOW_Y + 0.5, 0.5, C.lowGrass);
 
-  // ------------------------------------------------------------
-  // LEVEL 2: main town plateau, broad central body
-  // ------------------------------------------------------------
+  // LEVEL 2: broad middle terrace. It also supports the entire upper terrace.
   const midPlateau = [
-    [-63, -12], [-52, -17], [-35, -20], [-17, -20], [2, -18], [19, -13],
-    [30, -7], [35, 1], [34, 8], [29, 14], [22, 19], [12, 23],
-    [-2, 26], [-18, 27], [-35, 25], [-50, 20], [-59, 13], [-63, 3]
+    [-68,-52],[-49,-56],[-27,-57],[-5,-56],[18,-53],[37,-47],
+    [47,-40],[49,-32],[46,-23],[39,-18],[30,-14],[25,-8],
+    [30,-2],[34,5],[33,11],[28,17],[20,22],[10,26],
+    [-4,29],[-20,30],[-37,28],[-52,23],[-61,16],[-65,6],
+    [-66,-6],[-66,-20],[-67,-36]
   ];
   prism(midPlateau, LOW_Y, MID_Y, C.cliff);
   topSlab(midPlateau, MID_Y + 0.55, 0.55, C.midGrass);
 
-  // ------------------------------------------------------------
-  // LEVEL 3: long rear terrace, clearly separated from town
-  // ------------------------------------------------------------
+  // LEVEL 3: rear highland nested inside the middle terrace.
   const topPlateau = [
-    [-68, -54], [-47, -57], [-25, -57], [-2, -56], [21, -53], [40, -47],
-    [48, -40], [49, -32], [45, -26], [35, -22], [20, -19], [2, -19],
-    [-17, -20], [-35, -21], [-51, -24], [-62, -31], [-68, -40]
+    [-64,-52],[-47,-55],[-27,-56],[-4,-55],[17,-52],[35,-46],
+    [43,-39],[44,-33],[41,-27],[34,-23],[22,-20],[5,-19],
+    [-14,-20],[-33,-21],[-49,-24],[-59,-31],[-64,-40]
   ];
   prism(topPlateau, MID_Y, TOP_Y, C.cliff);
   topSlab(topPlateau, TOP_Y + 0.6, 0.6, C.topGrass);
 
-  // Right beach is not a fourth tier. It sits near sea level.
+  // Right beach is attached to the main island's coast at sea level.
+  // Its left edge deliberately overlaps the base island, so no water gap can appear.
   const beach = [
-    [38, -8], [49, -7], [59, -3], [67, 3], [70, 11], [69, 20],
-    [64, 28], [57, 34], [49, 38], [42, 36], [38, 30], [36, 21]
+    [44,-8],[56,-8],[66,-4],[73,3],[76,11],[75,20],
+    [70,29],[62,36],[52,41],[43,40],[37,35],[36,28],
+    [38,20],[41,11],[43,2]
   ];
   topSlab(beach, 1.15, 0.35, C.sand);
 
-  // Independent lighthouse island.
+  // Independent lighthouse island: smaller, irregular and pushed to the lower-right.
   const lighthouseIsland = [
-    [46, 53], [56, 48], [68, 48], [79, 53], [86, 61], [88, 70],
-    [84, 79], [76, 86], [65, 89], [54, 86], [46, 80], [41, 72], [41, 63]
+    [58,58],[66,54],[75,55],[83,60],[87,67],[86,75],
+    [80,82],[72,86],[63,84],[56,79],[52,72],[53,64]
   ];
   prism(lighthouseIsland, 0.25, LOW_Y + 0.6, C.cliffLight);
   topSlab([
-    [50, 57], [58, 53], [68, 53], [77, 57], [82, 63], [83, 70],
-    [79, 77], [72, 82], [64, 84], [56, 82], [50, 77], [46, 70], [46, 63]
+    [61,61],[67,58],[74,59],[80,63],[83,68],[82,74],
+    [77,79],[71,82],[64,80],[59,76],[56,70],[57,65]
   ], LOW_Y + 1.0, 0.4, C.lowGrass);
 
   // ------------------------------------------------------------
@@ -555,10 +559,8 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   landing(11, -23.2, 6.5, 4.0, TOP_Y + 0.68);
   landing(11, -10.9, 6.5, 4.0, MID_Y + 0.68);
 
-  // Clean retaining-wall runs on the front of the upper terrace, interrupted at stairs.
-  retainingWall([[-55,-24],[-42,-21.5],[-34,-20.8]], MID_Y + 1.0, TOP_Y - 0.3);
-  retainingWall([[-24,-20.0],[-10,-19.4],[4,-19.1]], MID_Y + 1.0, TOP_Y - 0.3);
-  retainingWall([[18,-19.1],[31,-21.0],[43,-25.0]], MID_Y + 1.0, TOP_Y - 0.3);
+  // Main cliff faces are now formed by the faceted terrain itself.
+  // Large artificial straight retaining walls are intentionally omitted.
 
   // ------------------------------------------------------------
   // Middle plateau: six simple blocks and central circular plaza
@@ -629,59 +631,57 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   landing(16, 20.0, 7.0, 4.0, MID_Y + 0.69);
   landing(16, 34.2, 7.0, 4.2, LOW_Y + 0.72);
 
-  // Selected retaining wall along the town's front edge, leaving the stair opening clear.
-  retainingWall([[-57,22],[-42,25],[-25,26.5],[-5,26.0],[8,23.5]], LOW_Y + 0.8, MID_Y - 0.35);
-  retainingWall([[24,18.0],[29,14.0],[33,8.5]], LOW_Y + 0.8, MID_Y - 0.35);
+  // The middle terrace also uses its own faceted cliff silhouette instead of long wall slabs.
 
   // ------------------------------------------------------------
   // Low coast: continuous boardwalk, beach path, pier
   // ------------------------------------------------------------
-  ribbon([[-59,29],[-48,32],[-35,35],[-20,37],[-5,38],[10,38],[23,35],[33,31]], 4.2, LOW_Y + 0.75, C.wood);
-  ribbon([[33,31],[37,36],[41,42],[45,49]], 3.9, LOW_Y + 0.75, C.wood);
+  ribbon([[-61,29],[-49,33],[-35,36],[-20,39],[-4,40],[11,39],[24,36],[34,31]], 4.2, LOW_Y + 0.75, C.wood);
+  ribbon([[34,31],[36,35],[37,38]], 3.9, LOW_Y + 0.75, C.wood);
 
   // Sparse structural supports make the boardwalk read as elevated construction.
   for (const [x,z] of [[-49,32],[-31,36],[-12,38],[8,38],[27,34],[39,39]]) {
     box(0.7, LOW_Y + 0.7, 0.7, C.block2, x, (LOW_Y + 0.7)/2, z);
   }
 
-  // beach-side wooden path
-  ribbon([[36,2],[40,9],[43,17],[45,25],[46,32]], 3.5, 1.55, C.wood);
+  // beach-side wooden path follows the attached right shoreline.
+  ribbon([[41,3],[45,10],[48,18],[51,25],[55,30]], 3.5, 1.55, C.wood);
 
   // Structural tide-pool placeholders, still blockout geometry only.
   cylinder(4.6, 5.2, 0.18, C.ocean, 55, 1.24, 8, 28);
   cylinder(3.2, 3.8, 0.16, C.ocean, 61, 1.22, 18, 24);
 
-  // pier extends rightward and finishes in a wider end platform.
-  ribbon([[46,32],[57,32],[69,32],[81,32],[92,32]], 4.0, 1.55, C.wood);
-  box(15, 0.46, 9, C.wood, 98, 1.55, 32);
+  // pier now starts from the right beach/shore and projects clearly into open water.
+  ribbon([[55,30],[66,30],[78,30],[90,30],[102,30]], 4.0, 1.55, C.wood);
+  box(15, 0.46, 9, C.wood, 108, 1.55, 30);
 
   // Pier posts below the main axis and terminal platform.
-  for (const x of [50,60,70,80,90,96,101]) {
-    box(0.65, 1.45, 0.65, C.block2, x, 0.75, 30.7);
-    box(0.65, 1.45, 0.65, C.block2, x, 0.75, 33.3);
+  for (const x of [58,68,78,88,98,105,111]) {
+    box(0.65, 1.45, 0.65, C.block2, x, 0.75, 28.7);
+    box(0.65, 1.45, 0.65, C.block2, x, 0.75, 31.3);
   }
 
   // pier house white model near the inner pier
   whiteBuilding({
-    x:61, z:27.5, w:8.5, d:6.2, bodyH:4.4, baseY:1.5,
+    x:64, z:25.5, w:8.5, d:6.2, bodyH:4.4, baseY:1.5,
     roof:'gable', roofH:2.2, ridgeAlongX:true,
     bodyColor:C.wallBlue, roofColor:C.roofSlate,
     annex:{ dx:3.8, dz:1.8, w:2.6, d:2.8, h:2.0, roof:false }
   });
 
-  // lighthouse bridge / path, now with a landing and an island approach loop.
-  ribbon([[45,49],[49,55],[54,61],[60,66]], 3.8, LOW_Y + 0.95, C.road);
-  landing(45.5, 49.5, 6.0, 5.0, LOW_Y + 0.96);
-  ribbon([[60,66],[63,66],[65,67],[65,68]], 3.5, LOW_Y + 1.05, C.road, 18);
-  ringRoad(6.0, 8.2, LOW_Y + 1.04, 65, 68);
+  // lighthouse bridge / path: a longer diagonal link to the smaller lower-right island.
+  ribbon([[37,38],[43,45],[50,53],[58,62]], 3.8, LOW_Y + 0.95, C.road);
+  landing(37.5, 38.5, 6.0, 5.0, LOW_Y + 0.96);
+  ribbon([[58,62],[63,65],[68,68],[70,70]], 3.5, LOW_Y + 1.05, C.road, 18);
+  ringRoad(6.0, 8.2, LOW_Y + 1.04, 70, 70);
 
   // lighthouse white model: base, tapered tower, gallery, lantern room, cap
-  cylinder(4.8, 4.8, 1.5, C.lighthouseRed, 65, LOW_Y + 1.8, 68, 32);
-  cylinder(2.8, 4.2, 12.8, C.lighthouseWhite, 65, LOW_Y + 8.5, 68, 32);
-  cylinder(4.0, 4.0, 0.8, C.lighthouseRed, 65, LOW_Y + 15.2, 68, 32);
-  cylinder(2.5, 2.5, 2.5, C.roofSlate, 65, LOW_Y + 16.8, 68, 24);
+  cylinder(4.8, 4.8, 1.5, C.lighthouseRed, 70, LOW_Y + 1.8, 70, 32);
+  cylinder(2.8, 4.2, 12.8, C.lighthouseWhite, 70, LOW_Y + 8.5, 70, 32);
+  cylinder(4.0, 4.0, 0.8, C.lighthouseRed, 70, LOW_Y + 15.2, 70, 32);
+  cylinder(2.5, 2.5, 2.5, C.roofSlate, 70, LOW_Y + 16.8, 70, 24);
   const lighthouseCap = new THREE.Mesh(new THREE.ConeGeometry(3.4, 2.2, 24), toon(C.lighthouseRed));
-  lighthouseCap.position.set(65, LOW_Y + 19.15, 68);
+  lighthouseCap.position.set(70, LOW_Y + 19.15, 70);
   lighthouseCap.castShadow = true;
   lighthouseCap.receiveShadow = true;
   scene.add(lighthouseCap);
@@ -755,7 +755,7 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   // Coast silhouette: keep large rocks, then add smaller rhythm pieces.
   const rocks = [
     [-52,44,4.2],[-36,47,3.8],[-19,49,4.2],[-1,48,3.8],[20,43,3.6],
-    [61,40,3.6],[68,27,3],[83,86,4.2],[48,85,3.8]
+    [61,40,3.6],[68,27,3],[84,80,3.8],[55,82,3.5]
   ];
 
   for (const [x,z,s] of rocks) {
@@ -769,17 +769,17 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
 
   for (const [x,z,s] of [
     [-58,38,0.9],[-44,43,0.8],[-27,46,0.9],[-10,46,0.75],[12,43,0.8],
-    [38,45,0.85],[73,45,0.75],[88,58,0.8],[86,75,0.9],[71,88,0.75],[55,84,0.8]
+    [38,45,0.85],[73,45,0.75],[86,61,0.8],[84,76,0.82],[73,85,0.72],[57,80,0.75]
   ]) coastRock(x, 0.1, z, s);
 
   // Lighthouse island: wind-beaten, lower vegetation and one quiet lookout.
   for (const [x,z,s] of [
-    [52,61,0.8],[55,76,0.75],[73,79,0.8],[80,67,0.75],[72,55,0.7]
+    [60,63,0.72],[60,75,0.68],[73,79,0.72],[80,69,0.68],[75,60,0.66]
   ]) shrub(x, LOW_Y + 1.0, z, s, C.foliageDark);
 
-  flowerPatch(55, LOW_Y + 1.0, 68, 0.7, C.flowerWhite);
-  bench(75, LOW_Y + 1.0, 69, Math.PI / 2);
-  signPost(57, LOW_Y + 1.0, 60, 0.35);
+  flowerPatch(61, LOW_Y + 1.0, 69, 0.62, C.flowerWhite);
+  bench(78, LOW_Y + 1.0, 70, Math.PI / 2);
+  signPost(60, LOW_Y + 1.0, 62, 0.35);
 
   // Small railings on the boardwalk/pier, enough to communicate safety without enclosing everything.
   for (const [x,z] of [[-45,33],[-26,36],[-7,38],[13,37],[30,32],[55,32],[72,32],[88,32]]) {
