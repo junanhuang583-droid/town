@@ -2,8 +2,8 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   app.innerHTML = '';
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xaedff0);
-  scene.fog = new THREE.Fog(0xaedff0, 190, 760);
+  scene.background = new THREE.Color(0xb7e3ef);
+  scene.fog = new THREE.Fog(0xb7e3ef, 240, 980);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -15,68 +15,66 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   renderer.toneMappingExposure = 1.0;
   app.appendChild(renderer.domElement);
 
-  const camera = new THREE.PerspectiveCamera(34, window.innerWidth / window.innerHeight, 0.1, 4000);
-  camera.position.set(86, 72, 94);
+  const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.1, 5000);
+  camera.position.set(118, 94, 142);
 
   const controls = new OrbitControls(camera, renderer.domElement);
-  controls.target.set(0, 10, 2);
+  controls.target.set(0, 10, 8);
   controls.enableDamping = true;
-  controls.dampingFactor = 0.075;
+  controls.dampingFactor = 0.07;
   controls.enablePan = true;
   controls.screenSpacePanning = true;
   controls.zoomToCursor = true;
 
-  // Camera rules:
-  // near-complete top-down to near-horizontal, never flip under the world.
   controls.minPolarAngle = 0;
   controls.maxPolarAngle = THREE.MathUtils.degToRad(89.4);
-  controls.minDistance = 14;
-  controls.maxDistance = 220;
-  controls.rotateSpeed = 0.7;
-  controls.panSpeed = 1.15;
-  controls.zoomSpeed = 1.05;
+  controls.minDistance = 12;
+  controls.maxDistance = 285;
+  controls.rotateSpeed = 0.72;
+  controls.panSpeed = 1.2;
+  controls.zoomSpeed = 1.06;
 
-  // Touch/mouse defaults: one finger / left drag rotates, two fingers can zoom+pan.
   controls.touches.ONE = THREE.TOUCH.ROTATE;
   controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
   controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
   controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
 
-  scene.add(new THREE.HemisphereLight(0xf7fcff, 0x79816c, 2.2));
-  const sun = new THREE.DirectionalLight(0xfff0d4, 3.2);
-  sun.position.set(-90, 125, -75);
+  scene.add(new THREE.HemisphereLight(0xf9fdff, 0x7c806f, 2.2));
+
+  const sun = new THREE.DirectionalLight(0xffefd5, 3.1);
+  sun.position.set(-105, 150, -85);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -150;
-  sun.shadow.camera.right = 150;
-  sun.shadow.camera.top = 150;
-  sun.shadow.camera.bottom = -150;
+  sun.shadow.camera.left = -180;
+  sun.shadow.camera.right = 180;
+  sun.shadow.camera.top = 180;
+  sun.shadow.camera.bottom = -180;
   sun.shadow.camera.near = 1;
-  sun.shadow.camera.far = 400;
-  sun.shadow.bias = -0.0003;
+  sun.shadow.camera.far = 500;
+  sun.shadow.bias = -0.00025;
   scene.add(sun);
 
   const C = {
-    ocean: 0x45b8d8,
-    ocean2: 0x55c7e4,
-    cliff: 0x69717d,
-    cliff2: 0x7e8794,
-    grassUpper: 0xa7d67d,
-    grassMid: 0x93ca74,
-    grassLow: 0x83bb6c,
-    sand: 0xf0d294,
-    road: 0xd6cbb8,
-    wood: 0xa8744f,
-    white: 0xd9dce4,
-    white2: 0xc9ced8,
-    rail: 0x4f5660,
-    fence: 0x7a5f49,
-    plaza: 0xcfd2d9
+    ocean: 0x47b8db,
+    cliff: 0x687382,
+    cliffLight: 0x7d8795,
+    topGrass: 0xa6d97c,
+    midGrass: 0x96cd75,
+    lowGrass: 0x86bd6c,
+    sand: 0xf0d49a,
+    road: 0xd7cdbb,
+    plaza: 0xd0d3da,
+    wood: 0xaa7853,
+    rail: 0x4d555f,
+    sleeper: 0x735947,
+    block: 0xdcdfe6,
+    block2: 0xcbd0d9,
+    fence: 0x7a604a
   };
 
   const toon = (color) => new THREE.MeshToonMaterial({ color });
 
-  function meshBox(w, h, d, color, x, y, z, rot = 0) {
+  function box(w, h, d, color, x, y, z, rot = 0) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), toon(color));
     m.position.set(x, y, z);
     m.rotation.y = rot;
@@ -86,7 +84,7 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     return m;
   }
 
-  function meshCylinder(rt, rb, h, color, x, y, z, seg = 32) {
+  function cylinder(rt, rb, h, color, x, y, z, seg = 32) {
     const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), toon(color));
     m.position.set(x, y, z);
     m.castShadow = true;
@@ -127,17 +125,18 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     return m;
   }
 
-  function slab(points, y, thickness, color) {
+  function topSlab(points, y, thickness, color) {
     return prism(points, y - thickness, y, color);
   }
 
-  function ribbon(points, width, y, color, segments = 56) {
+  function ribbon(points, width, y, color, segments = 48) {
     const curve = new THREE.CatmullRomCurve3(
       points.map(([x, z]) => new THREE.Vector3(x, y, z)),
       false,
       'catmullrom',
-      0.42
+      0.36
     );
+
     const pos = [];
     const idx = [];
 
@@ -146,6 +145,7 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
       const p = curve.getPoint(t);
       const tangent = curve.getTangent(t).normalize();
       const side = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize().multiplyScalar(width / 2);
+
       pos.push(p.x + side.x, y, p.z + side.z);
       pos.push(p.x - side.x, y, p.z - side.z);
 
@@ -166,131 +166,162 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     return m;
   }
 
-  function steps(x, z, width, depth, count, y0, y1, direction = 1) {
-    const stepD = depth / count;
+  function stairs(x, z, width, depth, count, y0, y1, towardPositiveZ = true) {
+    const d = depth / count;
     for (let i = 0; i < count; i++) {
       const t = i / Math.max(1, count - 1);
       const y = THREE.MathUtils.lerp(y0, y1, t);
-      meshBox(width, 0.45, stepD * 0.94, C.road, x, y, z + direction * (i - (count - 1) / 2) * stepD);
+      const local = (i - (count - 1) / 2) * d * (towardPositiveZ ? 1 : -1);
+      box(width, 0.42, d * 0.94, C.road, x, y, z + local);
     }
   }
 
-  // Infinite-feeling sea: far larger than the playable region.
-  const waterMat = new THREE.MeshToonMaterial({ color: C.ocean });
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(2400, 2400), waterMat);
+  const water = new THREE.Mesh(
+    new THREE.PlaneGeometry(3000, 3000),
+    new THREE.MeshToonMaterial({ color: C.ocean })
+  );
   water.rotation.x = -Math.PI / 2;
   water.position.y = 0;
   water.receiveShadow = true;
   scene.add(water);
 
-  // LEVEL 1: low coastal shelf, boardwalk and beach, y = 3.
-  const LOW_Y = 3.0;
-  const lowShelf = [
-    [-63, 25], [-55, 36], [-40, 43], [-22, 47], [-1, 47], [18, 43], [30, 35],
-    [34, 24], [30, 15], [18, 10], [1, 8], [-18, 10], [-38, 13], [-55, 18]
-  ];
-  prism(lowShelf, 0.2, LOW_Y, C.cliff2);
-  slab(lowShelf, LOW_Y + 0.45, 0.45, C.grassLow);
+  const LOW_Y = 3.5;
+  const MID_Y = 11.5;
+  const TOP_Y = 24.0;
 
-  // LEVEL 2: main town plateau, y = 10.
-  const MID_Y = 10.0;
+  // ------------------------------------------------------------
+  // LEVEL 1: narrow coastal shelf following the front edge
+  // ------------------------------------------------------------
+  const lowShelf = [
+    [-66, 26], [-58, 35], [-46, 42], [-31, 47], [-14, 50], [4, 50],
+    [18, 47], [29, 41], [36, 34], [37, 27], [32, 22], [20, 19],
+    [4, 18], [-15, 19], [-34, 20], [-52, 22]
+  ];
+  prism(lowShelf, 0.25, LOW_Y, C.cliffLight);
+  topSlab(lowShelf, LOW_Y + 0.5, 0.5, C.lowGrass);
+
+  // ------------------------------------------------------------
+  // LEVEL 2: main town plateau, broad central body
+  // ------------------------------------------------------------
   const midPlateau = [
-    [-58, -12], [-45, -18], [-25, -21], [-6, -20], [12, -16], [24, -9],
-    [29, 0], [26, 11], [18, 19], [5, 25], [-12, 28], [-31, 27], [-47, 22],
-    [-57, 14], [-62, 4]
+    [-65, -13], [-55, -18], [-38, -22], [-20, -24], [2, -24], [20, -21],
+    [31, -15], [36, -7], [36, 2], [32, 11], [25, 18], [17, 23],
+    [6, 27], [-9, 29], [-27, 29], [-44, 26], [-56, 20], [-64, 12]
   ];
   prism(midPlateau, LOW_Y, MID_Y, C.cliff);
-  slab(midPlateau, MID_Y + 0.5, 0.5, C.grassMid);
+  topSlab(midPlateau, MID_Y + 0.55, 0.55, C.midGrass);
 
-  // LEVEL 3: rear station terrace, y = 21.
-  const TOP_Y = 21.0;
+  // ------------------------------------------------------------
+  // LEVEL 3: long rear terrace, clearly separated from town
+  // ------------------------------------------------------------
   const topPlateau = [
-    [-63, -48], [-38, -52], [-10, -51], [16, -48], [35, -41], [39, -31],
-    [33, -22], [19, -17], [1, -16], [-18, -18], [-38, -17], [-54, -22], [-63, -32]
+    [-68, -55], [-50, -58], [-29, -59], [-5, -58], [18, -55], [38, -49],
+    [47, -41], [48, -32], [43, -24], [33, -19], [18, -16], [0, -15],
+    [-19, -16], [-38, -17], [-54, -21], [-64, -29], [-69, -40]
   ];
   prism(topPlateau, MID_Y, TOP_Y, C.cliff);
-  slab(topPlateau, TOP_Y + 0.55, 0.55, C.grassUpper);
+  topSlab(topPlateau, TOP_Y + 0.6, 0.6, C.topGrass);
 
-  // Right beach remains at sea level so the upper/middle cliff heights stay obvious.
+  // Right beach is not a fourth tier. It sits near sea level.
   const beach = [
-    [31, -9], [42, -8], [53, -2], [60, 7], [60, 18], [55, 28], [46, 35],
-    [35, 35], [29, 27], [27, 16]
+    [36, -9], [47, -8], [57, -4], [65, 3], [68, 12], [66, 21],
+    [61, 29], [53, 35], [45, 38], [38, 35], [35, 29], [34, 20]
   ];
-  slab(beach, 1.1, 0.35, C.sand);
+  topSlab(beach, 1.15, 0.35, C.sand);
 
-  // Separate lighthouse island, also a low-tier landform.
+  // Independent lighthouse island.
   const lighthouseIsland = [
-    [24, 47], [33, 43], [44, 46], [52, 53], [54, 63], [49, 72], [39, 78],
-    [28, 76], [19, 70], [16, 60], [19, 52]
+    [24, 50], [33, 46], [44, 47], [53, 52], [58, 61], [57, 70],
+    [51, 78], [42, 83], [32, 82], [22, 77], [16, 69], [15, 60], [19, 54]
   ];
-  prism(lighthouseIsland, 0.2, LOW_Y + 0.4, C.cliff2);
-  slab([
-    [23, 51], [32, 48], [42, 50], [48, 56], [49, 64], [44, 70], [35, 73],
-    [27, 70], [22, 65], [20, 58]
-  ], LOW_Y + 0.85, 0.45, C.grassLow);
+  prism(lighthouseIsland, 0.25, LOW_Y + 0.6, C.cliffLight);
+  topSlab([
+    [22, 54], [31, 50], [41, 51], [49, 55], [53, 62], [52, 69],
+    [47, 75], [39, 78], [30, 77], [23, 72], [20, 65], [20, 59]
+  ], LOW_Y + 1.0, 0.4, C.lowGrass);
 
-  // Upper railway and tunnel block.
-  meshBox(74, 0.25, 0.24, C.rail, -16, TOP_Y + 0.75, -41.5);
-  meshBox(74, 0.25, 0.24, C.rail, -16, TOP_Y + 0.75, -39.8);
-  for (let i = 0; i < 30; i++) {
-    meshBox(0.28, 0.18, 2.25, C.fence, -51 + i * 2.5, TOP_Y + 0.62, -40.65);
+  // ------------------------------------------------------------
+  // Upper terrace: railway, station, two houses
+  // ------------------------------------------------------------
+  box(92, 0.24, 0.24, C.rail, -10, TOP_Y + 0.75, -47.5);
+  box(92, 0.24, 0.24, C.rail, -10, TOP_Y + 0.75, -45.6);
+
+  for (let i = 0; i < 38; i++) {
+    box(0.28, 0.16, 2.4, C.sleeper, -55 + i * 2.4, TOP_Y + 0.62, -46.55);
   }
-  meshBox(8, 8, 8, C.cliff2, -59, TOP_Y - 1.2, -40.5);
 
-  // Pure blockout buildings: no final architecture.
-  meshBox(14, 7, 8, C.white2, -32, TOP_Y + 4.1, -31);
-  meshBox(8, 5, 7, C.white, 4, TOP_Y + 3.1, -29);
-  meshBox(8, 5, 7, C.white, 21, TOP_Y + 3.1, -28);
+  // tunnel masses at left edge
+  box(9, 10, 9, C.cliffLight, -64, TOP_Y - 1.5, -46.5);
+  box(8, 8, 7, C.cliffLight, -60, MID_Y + 4.0, -24.5);
 
-  // Top terrace road and two explicit vertical connections to the middle plateau.
-  ribbon([[-57,-31],[-40,-30],[-22,-28],[-3,-27],[16,-26],[30,-28]], 4.4, TOP_Y + 0.65, C.road);
-  steps(-34, -18, 5.2, 14.5, 14, MID_Y + 0.8, TOP_Y + 0.4, -1);
-  steps(11, -16, 5.2, 13.5, 13, MID_Y + 0.8, TOP_Y + 0.4, -1);
+  // station and two small upper houses
+  box(16, 7, 9, C.block2, -33, TOP_Y + 4.1, -35);
+  box(8, 5.5, 7.5, C.block, 8, TOP_Y + 3.4, -31.5);
+  box(8.5, 5.5, 7.5, C.block, 27, TOP_Y + 3.4, -31.0);
 
-  // Six town blocks: three upper row + three lower row, as in the structural blueprint.
-  const blockY = MID_Y + 3.0;
+  ribbon([[-58,-37],[-41,-36],[-24,-35],[-5,-34],[14,-33],[31,-33]], 4.7, TOP_Y + 0.7, C.road);
+
+  // Two upper-to-middle stair connections, matching the blueprint.
+  stairs(-29, -19.5, 5.3, 16.5, 16, MID_Y + 0.9, TOP_Y + 0.35, false);
+  stairs(11, -17.0, 5.0, 14.0, 14, MID_Y + 0.9, TOP_Y + 0.35, false);
+
+  // ------------------------------------------------------------
+  // Middle plateau: six simple blocks and central circular plaza
+  // ------------------------------------------------------------
+  const H = MID_Y + 3.2;
   const townBlocks = [
-    [-43,-3,13,9], [-26,-2,12,9], [-7,-1,16,10],
-    [-45,13,12,9], [-27,14,14,10], [-8,14,15,10]
+    [-46, -2, 13, 9],
+    [-28, -1, 12, 9],
+    [-9,  0, 16, 10],
+    [-47, 14, 12, 9],
+    [-28, 15, 14, 10],
+    [-9, 16, 15, 10]
   ];
+
   for (const [x,z,w,d] of townBlocks) {
-    meshBox(w, 6, d, C.white, x, blockY, z);
+    box(w, 6.2, d, C.block, x, H, z);
   }
 
-  // Simple road slabs around the blocks.
-  ribbon([[-55,-10],[-44,-8],[-30,-8],[-15,-7],[0,-6],[10,-3]], 3.8, MID_Y + 0.65, C.road);
-  ribbon([[-55,8],[-43,7],[-28,8],[-12,8],[2,7],[12,5]], 3.8, MID_Y + 0.65, C.road);
-  ribbon([[-52,22],[-35,21],[-17,22],[-2,21],[10,17]], 3.8, MID_Y + 0.65, C.road);
+  // Main circulation, deliberately simple.
+  ribbon([[-57,-9],[-44,-8],[-28,-8],[-12,-7],[4,-5],[17,-1]], 3.8, MID_Y + 0.68, C.road);
+  ribbon([[-57,8],[-44,8],[-28,9],[-12,10],[2,10],[15,8]], 3.8, MID_Y + 0.68, C.road);
+  ribbon([[-54,23],[-38,22],[-22,23],[-7,23],[5,20],[15,16]], 3.8, MID_Y + 0.68, C.road);
 
-  // Central plaza: still structural only.
-  meshCylinder(12, 12, 0.55, C.plaza, 15, MID_Y + 0.8, 7, 48);
-  meshCylinder(3.7, 3.7, 1.0, C.white2, 15, MID_Y + 1.4, 7, 32);
-  meshCylinder(1.4, 1.4, 5.0, C.white2, 15, MID_Y + 4.0, 7, 24);
+  // Plaza sits to the right of the six blocks, as in the blueprint.
+  cylinder(12.5, 12.5, 0.6, C.plaza, 18, MID_Y + 0.85, 9, 48);
+  cylinder(4.1, 4.1, 0.9, C.block2, 18, MID_Y + 1.45, 9, 40);
+  cylinder(1.45, 1.45, 5.2, C.block2, 18, MID_Y + 4.0, 9, 24);
 
-  // Connection from middle plateau down to the low coastal shelf.
-  steps(15, 24, 5.4, 14, 13, LOW_Y + 0.8, MID_Y + 0.4, 1);
+  // Middle-to-low stair centered below the plaza.
+  stairs(18, 27.5, 5.4, 15.5, 14, LOW_Y + 0.9, MID_Y + 0.35, true);
 
-  // Low-tier boardwalk hugging the cliff.
-  ribbon([[-56,28],[-43,34],[-27,38],[-9,40],[8,39],[23,34],[31,28]], 4.5, LOW_Y + 0.7, C.wood);
-  ribbon([[31,28],[35,34],[36,42],[34,48]], 4.0, LOW_Y + 0.7, C.wood);
+  // ------------------------------------------------------------
+  // Low coast: continuous boardwalk, beach path, pier
+  // ------------------------------------------------------------
+  ribbon([[-59,30],[-48,35],[-34,40],[-18,43],[-2,44],[14,42],[27,37],[35,31]], 4.4, LOW_Y + 0.75, C.wood);
+  ribbon([[35,31],[38,37],[39,43],[37,49]], 4.0, LOW_Y + 0.75, C.wood);
 
-  // Beach boardwalk and pier.
-  ribbon([[29,6],[34,13],[38,21],[38,29]], 3.4, 1.55, C.wood);
-  ribbon([[38,29],[47,31],[59,31],[70,31]], 4.0, 1.55, C.wood);
-  meshBox(12, 0.45, 8, C.wood, 74, 1.55, 31);
+  // beach-side wooden path
+  ribbon([[34,3],[38,10],[41,18],[42,27],[41,34]], 3.5, 1.55, C.wood);
 
-  // Lighthouse bridge and structural lighthouse cylinder.
-  ribbon([[34,48],[31,54],[29,59],[31,63]], 3.8, LOW_Y + 0.85, C.road);
-  meshCylinder(2.8, 3.8, 13.0, C.white, 36, LOW_Y + 7.1, 61, 28);
-  meshCylinder(3.5, 3.5, 1.2, C.white2, 36, LOW_Y + 13.8, 61, 28);
+  // pier extends rightward
+  ribbon([[40,31],[50,31],[60,31],[70,31],[79,31]], 4.0, 1.55, C.wood);
+  box(12, 0.46, 8, C.wood, 83, 1.55, 31);
 
-  // A few large coast rocks only to explain the silhouette, not for decoration.
+  // lighthouse bridge / path
+  ribbon([[37,49],[34,55],[32,61],[33,66]], 3.8, LOW_Y + 0.95, C.road);
+
+  cylinder(2.9, 3.9, 13.5, C.block, 37, LOW_Y + 7.6, 65, 30);
+  cylinder(3.6, 3.6, 1.2, C.block2, 37, LOW_Y + 14.6, 65, 30);
+
+  // Only a few rocks to explain coast outline.
   const rocks = [
-    [-52,48,5],[-36,50,4],[-20,53,5],[-1,52,4],[20,46,4],
-    [53,36,4],[58,23,3],[49,78,5],[20,76,4]
+    [-54,48,4.5],[-39,52,4],[-23,54,4.5],[-5,53,4],[19,48,3.8],
+    [56,39,3.8],[62,26,3],[52,82,4.5],[21,79,4]
   ];
+
   for (const [x,z,s] of rocks) {
-    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), toon(C.cliff2));
+    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), toon(C.cliffLight));
     rock.position.set(x, s * 0.55, z);
     rock.scale.y = 0.75;
     rock.castShadow = true;
@@ -298,14 +329,19 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     scene.add(rock);
   }
 
-  // Minimal camera toolbar: Default / Top / Low / Lock.
+  // ------------------------------------------------------------
+  // Camera controls
+  // ------------------------------------------------------------
   const ui = document.createElement('div');
   ui.style.cssText = [
     'position:fixed',
-    'right:12px',
-    'top:12px',
+    'right:10px',
+    'top:10px',
     'display:flex',
+    'flex-wrap:wrap',
+    'justify-content:flex-end',
     'gap:6px',
+    'max-width:min(96vw,520px)',
     'z-index:5',
     'font:12px/1 system-ui,sans-serif'
   ].join(';');
@@ -314,10 +350,10 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     const b = document.createElement('button');
     b.textContent = label;
     b.style.cssText = [
-      'border:1px solid rgba(0,0,0,.18)',
+      'border:1px solid rgba(0,0,0,.16)',
       'border-radius:8px',
       'padding:8px 10px',
-      'background:rgba(255,255,255,.88)',
+      'background:rgba(255,255,255,.9)',
       'color:#27343b',
       'backdrop-filter:blur(8px)',
       'cursor:pointer'
@@ -328,26 +364,29 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   }
 
   addButton('默认', () => {
-    camera.position.set(116, 92, 128);
-    controls.target.set(0, 10, 4);
+    camera.position.set(118, 94, 142);
+    controls.target.set(0, 10, 8);
     controls.update();
   });
 
   addButton('俯视', () => {
     const t = controls.target.clone();
-    camera.position.set(t.x + 0.2, t.y + 92, t.z + 0.2);
+    camera.position.set(t.x + 0.15, t.y + 120, t.z + 0.15);
     controls.update();
   });
 
   addButton('平视', () => {
     const t = controls.target.clone();
-    camera.position.set(t.x + 72, t.y + 2.2, t.z + 72);
+    camera.position.set(t.x + 95, t.y + 2.5, t.z + 95);
     controls.update();
   });
 
+  let locked = false;
   let moveMode = false;
+
   const moveButton = addButton('移动模式', () => {
     moveMode = !moveMode;
+
     if (moveMode) {
       controls.enableRotate = false;
       controls.enablePan = true;
@@ -365,7 +404,6 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     }
   });
 
-  let locked = false;
   const lockButton = addButton('锁视角', () => {
     locked = !locked;
     if (!moveMode) controls.enableRotate = !locked;
@@ -374,10 +412,9 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
 
   app.appendChild(ui);
 
-  // Let the camera target travel across the whole playable region.
-  // The surrounding sea is huge, so movement never reveals a rectangular world edge.
-  const minTarget = new THREE.Vector3(-85, 0, -65);
-  const maxTarget = new THREE.Vector3(95, 28, 95);
+  // Camera can move around the whole current region but not drift infinitely.
+  const minTarget = new THREE.Vector3(-100, 0, -80);
+  const maxTarget = new THREE.Vector3(115, 32, 110);
 
   controls.addEventListener('change', () => {
     controls.target.x = THREE.MathUtils.clamp(controls.target.x, minTarget.x, maxTarget.x);
