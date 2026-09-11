@@ -28,8 +28,8 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
 
   // Camera rules:
   // near-complete top-down to near-horizontal, never flip under the world.
-  controls.minPolarAngle = THREE.MathUtils.degToRad(1.5);
-  controls.maxPolarAngle = THREE.MathUtils.degToRad(87.5);
+  controls.minPolarAngle = 0;
+  controls.maxPolarAngle = THREE.MathUtils.degToRad(89.4);
   controls.minDistance = 14;
   controls.maxDistance = 94;
   controls.rotateSpeed = 0.7;
@@ -335,7 +335,7 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
 
   addButton('平视', () => {
     const t = controls.target.clone();
-    camera.position.set(t.x + 72, t.y + 7, t.z + 72);
+    camera.position.set(t.x + 72, t.y + 2.2, t.z + 72);
     controls.update();
   });
 
