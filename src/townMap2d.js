@@ -295,7 +295,7 @@ export function createTownMap(app) {
 
   function renderTransform() {
     clampPan();
-    stage.style.transform = \`translate(\${x}px, \${y}px) scale(\${scale})\`;
+    stage.style.transform = 'translate(' + x + 'px, ' + y + 'px) scale(' + scale + ')';
   }
 
   function fitMap() {
