@@ -6,7 +6,7 @@ export function createTownMap(app) {
 
   const stage = document.createElement('div');
   stage.className = 'map-stage';
-  stage.innerHTML = String.raw\`
+  stage.innerHTML = String.raw`
   <svg class="town-map" viewBox="0 0 1600 1000" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="海边度假小镇地图">
     <defs>
       <linearGradient id="sea" x1="0" y1="0" x2="0.9" y2="1">
@@ -259,7 +259,7 @@ export function createTownMap(app) {
       <path d="M935 518 C1007 499 1102 529 1164 580"/>
       <path d="M1183 701 C1254 652 1355 642 1410 678"/>
     </g>
-  </svg>\`;
+  </svg>`;
 
   viewport.appendChild(stage);
   app.appendChild(viewport);
