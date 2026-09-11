@@ -293,7 +293,7 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   cylinder(1.45, 1.45, 5.2, C.block2, 18, MID_Y + 4.0, 9, 24);
 
   // Middle-to-low stair centered below the plaza.
-  stairs(18, 27.5, 5.4, 15.5, 14, LOW_Y + 0.9, MID_Y + 0.35, true);
+  stairs(18, 27.5, 5.4, 15.5, 14, MID_Y + 0.35, LOW_Y + 0.9, true);
 
   // ------------------------------------------------------------
   // Low coast: continuous boardwalk, beach path, pier
