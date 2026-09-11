@@ -1,3 +1,3 @@
-import { createTownMap } from './townMap2d.js';
+import { mountMap } from './mapView.js';
 
-createTownMap(document.querySelector('#app'));
+mountMap(document.querySelector('#app'));
