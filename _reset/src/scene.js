@@ -29,7 +29,7 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   controls.minPolarAngle = 0;
   controls.maxPolarAngle = THREE.MathUtils.degToRad(89.4);
   controls.minDistance = 12;
-  controls.maxDistance = 285;
+  controls.maxDistance = 520;
   controls.rotateSpeed = 0.72;
   controls.panSpeed = 1.2;
   controls.zoomSpeed = 1.06;
@@ -103,9 +103,10 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     for (const [x, z] of points) verts.push(x, bottomY, z);
     for (const [x, z] of points) verts.push(x, topY, z);
 
+    // Top cap only. Bottom caps are intentionally omitted because terrain tiers
+    // stack vertically and hidden coplanar bottoms cause Z-fighting on mobile GPUs.
     for (const tri of faces) {
       idx.push(n + tri[0], n + tri[1], n + tri[2]);
-      idx.push(tri[2], tri[1], tri[0]);
     }
 
     for (let i = 0; i < n; i++) {
@@ -126,7 +127,8 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   }
 
   function topSlab(points, y, thickness, color) {
-    return prism(points, y - thickness, y, color);
+    const epsilon = 0.035;
+    return prism(points, y - thickness + epsilon, y, color);
   }
 
   function ribbon(points, width, y, color, segments = 48) {
@@ -422,8 +424,25 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     controls.target.z = THREE.MathUtils.clamp(controls.target.z, minTarget.z, maxTarget.z);
   });
 
+  function updateZoomLimits() {
+    const aspect = window.innerWidth / window.innerHeight;
+
+    // Portrait phones have a very narrow horizontal field of view, so they need
+    // a substantially larger orbit radius to fit the whole town.
+    if (aspect < 0.62) {
+      controls.maxDistance = 520;
+    } else if (aspect < 0.85) {
+      controls.maxDistance = 465;
+    } else if (aspect < 1.15) {
+      controls.maxDistance = 400;
+    } else {
+      controls.maxDistance = 345;
+    }
+  }
+
   function resize() {
     camera.aspect = window.innerWidth / window.innerHeight;
+    updateZoomLimits();
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
