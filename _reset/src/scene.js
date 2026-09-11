@@ -31,10 +31,16 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   controls.minPolarAngle = 0;
   controls.maxPolarAngle = THREE.MathUtils.degToRad(89.4);
   controls.minDistance = 14;
-  controls.maxDistance = 94;
+  controls.maxDistance = 220;
   controls.rotateSpeed = 0.7;
-  controls.panSpeed = 0.8;
-  controls.zoomSpeed = 0.95;
+  controls.panSpeed = 1.15;
+  controls.zoomSpeed = 1.05;
+
+  // Touch/mouse defaults: one finger / left drag rotates, two fingers can zoom+pan.
+  controls.touches.ONE = THREE.TOUCH.ROTATE;
+  controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+  controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+  controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
 
   scene.add(new THREE.HemisphereLight(0xf7fcff, 0x79816c, 2.2));
   const sun = new THREE.DirectionalLight(0xfff0d4, 3.2);
@@ -322,8 +328,8 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   }
 
   addButton('默认', () => {
-    camera.position.set(86, 72, 94);
-    controls.target.set(0, 10, 2);
+    camera.position.set(116, 92, 128);
+    controls.target.set(0, 10, 4);
     controls.update();
   });
 
@@ -339,18 +345,39 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     controls.update();
   });
 
+  let moveMode = false;
+  const moveButton = addButton('移动模式', () => {
+    moveMode = !moveMode;
+    if (moveMode) {
+      controls.enableRotate = false;
+      controls.enablePan = true;
+      controls.touches.ONE = THREE.TOUCH.PAN;
+      controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+      controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
+      moveButton.textContent = '旋转模式';
+    } else {
+      controls.enableRotate = !locked;
+      controls.enablePan = true;
+      controls.touches.ONE = THREE.TOUCH.ROTATE;
+      controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+      controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+      moveButton.textContent = '移动模式';
+    }
+  });
+
   let locked = false;
   const lockButton = addButton('锁视角', () => {
     locked = !locked;
-    controls.enableRotate = !locked;
+    if (!moveMode) controls.enableRotate = !locked;
     lockButton.textContent = locked ? '解锁视角' : '锁视角';
   });
 
   app.appendChild(ui);
 
-  // Keep panning inside the region while the sea itself has no visible border.
-  const minTarget = new THREE.Vector3(-48, 2, -38);
-  const maxTarget = new THREE.Vector3(47, 22, 62);
+  // Let the camera target travel across the whole playable region.
+  // The surrounding sea is huge, so movement never reveals a rectangular world edge.
+  const minTarget = new THREE.Vector3(-85, 0, -65);
+  const maxTarget = new THREE.Vector3(95, 28, 95);
 
   controls.addEventListener('change', () => {
     controls.target.x = THREE.MathUtils.clamp(controls.target.x, minTarget.x, maxTarget.x);
