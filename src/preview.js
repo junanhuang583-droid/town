@@ -1,5 +1,4 @@
-import * as THREE from 'https://esm.sh/three@0.170.0';
-import { OrbitControls } from 'https://esm.sh/three@0.170.0/examples/jsm/controls/OrbitControls.js';
-import { createTownScene } from './townScene.js';
+import './style.css';
+import { createTownMap } from './townMap2d.js';
 
-createTownScene(THREE, OrbitControls, document.querySelector('#app'));
+createTownMap(document.querySelector('#app'));
