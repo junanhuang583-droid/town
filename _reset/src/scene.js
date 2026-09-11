@@ -88,6 +88,20 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     lighthouseWhite: 0xf5f0e6,
     lighthouseRed: 0xc96f64,
 
+    foliageDark: 0x4f8d62,
+    foliageMid: 0x6eab69,
+    foliageLight: 0x8fc678,
+    trunk: 0x7c6048,
+    flowerPink: 0xe88f9e,
+    flowerYellow: 0xf0cf67,
+    flowerBlue: 0x85add6,
+    flowerWhite: 0xf5efe2,
+    foam: 0xe9fbff,
+    lamp: 0x596674,
+    lampGlow: 0xffe4ad,
+    sign: 0xd9c6a2,
+    stoneAccent: 0x9aa1aa,
+
     block: 0xf0ece4,
     block2: 0xcfd4da
   };
@@ -319,6 +333,102 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     m.receiveShadow = true;
     scene.add(m);
     return m;
+  }
+
+  function tree(x, y, z, scale = 1) {
+    cylinder(0.38 * scale, 0.52 * scale, 3.2 * scale, C.trunk, x, y + 1.6 * scale, z, 8);
+
+    const crown1 = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(1.9 * scale, 0),
+      toon(C.foliageDark)
+    );
+    crown1.position.set(x, y + 4.1 * scale, z);
+    crown1.scale.set(1.15, 0.9, 1.0);
+    crown1.castShadow = true;
+    crown1.receiveShadow = true;
+    scene.add(crown1);
+
+    const crown2 = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(1.55 * scale, 0),
+      toon(C.foliageMid)
+    );
+    crown2.position.set(x - 0.9 * scale, y + 4.45 * scale, z + 0.35 * scale);
+    crown2.castShadow = true;
+    crown2.receiveShadow = true;
+    scene.add(crown2);
+
+    const crown3 = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(1.35 * scale, 0),
+      toon(C.foliageLight)
+    );
+    crown3.position.set(x + 0.95 * scale, y + 4.35 * scale, z - 0.25 * scale);
+    crown3.castShadow = true;
+    crown3.receiveShadow = true;
+    scene.add(crown3);
+  }
+
+  function shrub(x, y, z, scale = 1, color = C.foliageMid) {
+    const m = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(1.15 * scale, 0),
+      toon(color)
+    );
+    m.position.set(x, y + 0.75 * scale, z);
+    m.scale.set(1.25, 0.72, 1.0);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    scene.add(m);
+    return m;
+  }
+
+  function flowerPatch(x, y, z, scale = 1, color = C.flowerPink) {
+    const offsets = [[0,0],[-0.7,0.25],[0.65,0.35],[-0.35,-0.55],[0.4,-0.5]];
+    for (const [dx,dz] of offsets) {
+      cylinder(0.18 * scale, 0.22 * scale, 0.55 * scale, C.foliageDark, x + dx * scale, y + 0.28 * scale, z + dz * scale, 6);
+      const bloom = new THREE.Mesh(
+        new THREE.SphereGeometry(0.28 * scale, 8, 6),
+        toon(color)
+      );
+      bloom.position.set(x + dx * scale, y + 0.62 * scale, z + dz * scale);
+      bloom.castShadow = true;
+      scene.add(bloom);
+    }
+  }
+
+  function bench(x, y, z, rot = 0) {
+    box(3.2, 0.28, 0.75, C.wood, x, y + 0.78, z, rot);
+    box(3.2, 1.25, 0.24, C.woodDark, x, y + 1.38, z - Math.cos(rot) * 0.38, rot);
+    box(0.24, 0.72, 0.55, C.woodDark, x - Math.cos(rot) * 1.15, y + 0.36, z + Math.sin(rot) * 1.15, rot);
+    box(0.24, 0.72, 0.55, C.woodDark, x + Math.cos(rot) * 1.15, y + 0.36, z - Math.sin(rot) * 1.15, rot);
+  }
+
+  function lampPost(x, y, z, scale = 1) {
+    cylinder(0.12 * scale, 0.16 * scale, 3.8 * scale, C.lamp, x, y + 1.9 * scale, z, 8);
+    const light = new THREE.Mesh(
+      new THREE.SphereGeometry(0.42 * scale, 10, 8),
+      toon(C.lampGlow)
+    );
+    light.position.set(x, y + 4.0 * scale, z);
+    light.castShadow = false;
+    scene.add(light);
+  }
+
+  function signPost(x, y, z, rot = 0) {
+    cylinder(0.13, 0.16, 2.4, C.trunk, x, y + 1.2, z, 8);
+    box(2.6, 0.9, 0.22, C.sign, x, y + 2.25, z, rot);
+  }
+
+  function coastRock(x, y, z, scale = 1, color = C.cliffLight) {
+    const rock = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(1.6 * scale, 0),
+      toon(color)
+    );
+    rock.position.set(x, y + 0.65 * scale, z);
+    rock.scale.set(1.15, 0.75, 0.95);
+    rock.rotation.y = (x + z) * 0.13;
+    rock.castShadow = true;
+    rock.receiveShadow = true;
+    scene.add(rock);
+    return rock;
   }
 
   const waterDeep = new THREE.Mesh(
@@ -576,7 +686,73 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   lighthouseCap.receiveShadow = true;
   scene.add(lighthouseCap);
 
-  // Only a few rocks to explain coast outline.
+  // ------------------------------------------------------------
+  // Environment enrichment pass
+  // ------------------------------------------------------------
+
+  // Upper terrace: restrained greenery around station/cottages, keeping rails readable.
+  for (const [x,z,s] of [
+    [-54,-33,0.95],[-48,-29,0.8],[-14,-31,0.8],[18,-36,0.85],[35,-34,0.9]
+  ]) tree(x, TOP_Y + 0.6, z, s);
+
+  for (const [x,z,s] of [
+    [-43,-30,0.8],[-19,-27,0.75],[-2,-29,0.75],[15,-27,0.7],[33,-27,0.75]
+  ]) shrub(x, TOP_Y + 0.6, z, s);
+
+  flowerPatch(-17, TOP_Y + 0.6, -34, 0.9, C.flowerBlue);
+  flowerPatch(18, TOP_Y + 0.6, -28, 0.85, C.flowerWhite);
+
+  // Main town: trees live at edges, flowers/benches/lights define the social spaces.
+  for (const [x,z,s] of [
+    [-58,-2,0.8],[-55,15,0.85],[-42,23,0.75],[-24,24,0.75],
+    [4,22,0.75],[28,3,0.75],[28,14,0.75]
+  ]) tree(x, MID_Y + 0.55, z, s);
+
+  for (const [x,z,s] of [
+    [-54,-13,0.75],[-35,-15,0.7],[-15,-13,0.7],[5,-10,0.75],
+    [-55,20,0.8],[-34,24,0.75],[-11,24,0.72],[27,18,0.75]
+  ]) shrub(x, MID_Y + 0.55, z, s);
+
+  flowerPatch(-39, MID_Y + 0.55, 4, 0.8, C.flowerPink);
+  flowerPatch(-19, MID_Y + 0.55, 5, 0.8, C.flowerYellow);
+  flowerPatch(1, MID_Y + 0.55, 15, 0.85, C.flowerBlue);
+  flowerPatch(25, MID_Y + 0.55, 9, 0.9, C.flowerWhite);
+
+  bench(5.5, MID_Y + 0.55, 7.5, Math.PI / 2);
+  bench(16, MID_Y + 0.55, -7.0, 0);
+  bench(24.5, MID_Y + 0.55, 15.0, Math.PI / 2);
+  bench(-50, MID_Y + 0.55, 20.0, 0.15);
+
+  for (const [x,z] of [[-50,-8],[-29,8],[-8,9],[8,0],[29,8],[5,20]]) {
+    lampPost(x, MID_Y + 0.55, z, 0.9);
+  }
+
+  signPost(-34, MID_Y + 0.55, -11.5, 0.08);
+  signPost(10, MID_Y + 0.55, 20.5, -0.35);
+
+  // Low coast: sparse salt-tolerant greenery and seating along the boardwalk.
+  for (const [x,z,s] of [
+    [-52,28,0.7],[-38,31,0.65],[-21,34,0.65],[-3,35,0.65],[20,32,0.7],[31,28,0.65]
+  ]) shrub(x, LOW_Y + 0.5, z, s, C.foliageDark);
+
+  bench(-28, LOW_Y + 0.5, 34.5, 0.15);
+  bench(4, LOW_Y + 0.5, 36.5, -0.1);
+  bench(27, LOW_Y + 0.5, 31.5, -0.35);
+
+  // Beach edge and tide pools: rocks plus two soft foam bands.
+  for (const [x,z,s] of [
+    [43,-3,1.0],[52,-2,0.75],[63,3,0.9],[66,14,0.85],[61,26,0.9],[54,34,0.75],
+    [49,13,0.55],[58,22,0.6]
+  ]) coastRock(x, 0.15, z, s, C.stoneAccent);
+
+  ribbon([[40,-5],[49,-5],[58,-2],[64,3],[67,10]], 0.65, 0.08, C.foam, 28);
+  ribbon([[67,13],[66,20],[62,27],[56,33],[49,36]], 0.55, 0.08, C.foam, 24);
+
+  // A few small beach markers keep the sand readable without crowding it.
+  signPost(42, 1.15, 5, Math.PI / 2);
+  bench(47, 1.15, 26, Math.PI / 2);
+
+  // Coast silhouette: keep large rocks, then add smaller rhythm pieces.
   const rocks = [
     [-52,44,4.2],[-36,47,3.8],[-19,49,4.2],[-1,48,3.8],[20,43,3.6],
     [61,40,3.6],[68,27,3],[83,86,4.2],[48,85,3.8]
@@ -590,6 +766,28 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     rock.receiveShadow = true;
     scene.add(rock);
   }
+
+  for (const [x,z,s] of [
+    [-58,38,0.9],[-44,43,0.8],[-27,46,0.9],[-10,46,0.75],[12,43,0.8],
+    [38,45,0.85],[73,45,0.75],[88,58,0.8],[86,75,0.9],[71,88,0.75],[55,84,0.8]
+  ]) coastRock(x, 0.1, z, s);
+
+  // Lighthouse island: wind-beaten, lower vegetation and one quiet lookout.
+  for (const [x,z,s] of [
+    [52,61,0.8],[55,76,0.75],[73,79,0.8],[80,67,0.75],[72,55,0.7]
+  ]) shrub(x, LOW_Y + 1.0, z, s, C.foliageDark);
+
+  flowerPatch(55, LOW_Y + 1.0, 68, 0.7, C.flowerWhite);
+  bench(75, LOW_Y + 1.0, 69, Math.PI / 2);
+  signPost(57, LOW_Y + 1.0, 60, 0.35);
+
+  // Small railings on the boardwalk/pier, enough to communicate safety without enclosing everything.
+  for (const [x,z] of [[-45,33],[-26,36],[-7,38],[13,37],[30,32],[55,32],[72,32],[88,32]]) {
+    box(0.18, 1.25, 0.18, C.fence, x, LOW_Y + 1.35, z);
+  }
+  segmentBeam(-45,33,-26,36,0.18,0.18,LOW_Y + 1.9,C.fence);
+  segmentBeam(-26,36,-7,38,0.18,0.18,LOW_Y + 1.9,C.fence);
+  segmentBeam(-7,38,13,37,0.18,0.18,LOW_Y + 1.9,C.fence);
 
   // ------------------------------------------------------------
   // Camera controls
