@@ -2,8 +2,8 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   app.innerHTML = '';
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xb7e3ef);
-  scene.fog = new THREE.Fog(0xb7e3ef, 240, 980);
+  scene.background = new THREE.Color(0xbfe6ee);
+  scene.fog = new THREE.Fog(0xbfe6ee, 250, 980);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -39,9 +39,9 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
   controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
 
-  scene.add(new THREE.HemisphereLight(0xf9fdff, 0x7c806f, 2.2));
+  scene.add(new THREE.HemisphereLight(0xfffdf8, 0x748070, 2.15));
 
-  const sun = new THREE.DirectionalLight(0xffefd5, 3.1);
+  const sun = new THREE.DirectionalLight(0xffedcf, 3.0);
   sun.position.set(-105, 150, -85);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -55,24 +55,49 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   scene.add(sun);
 
   const C = {
-    ocean: 0x47b8db,
-    cliff: 0x687382,
-    cliffLight: 0x7d8795,
-    topGrass: 0xa6d97c,
-    midGrass: 0x96cd75,
-    lowGrass: 0x86bd6c,
-    sand: 0xf0d49a,
-    road: 0xd7cdbb,
-    plaza: 0xd0d3da,
-    wood: 0xaa7853,
-    rail: 0x4d555f,
-    sleeper: 0x735947,
-    block: 0xdcdfe6,
-    block2: 0xcbd0d9,
-    fence: 0x7a604a
+    ocean: 0x4ab6d7,
+    oceanDeep: 0x319dc3,
+    cliff: 0x747d8a,
+    cliffLight: 0x8b94a0,
+    topGrass: 0xa9d47f,
+    midGrass: 0x98ca76,
+    lowGrass: 0x83b96c,
+    sand: 0xf3d59b,
+    road: 0xdccfb9,
+    plaza: 0xd9d6cd,
+    wood: 0xa9744d,
+    woodDark: 0x79563f,
+    rail: 0x505865,
+    sleeper: 0x6f5848,
+    fence: 0x795f49,
+
+    wallIvory: 0xf1eadc,
+    wallCream: 0xf5dfc6,
+    wallBlue: 0xcfe2ea,
+    wallMint: 0xd8e7d2,
+    wallRose: 0xead2cb,
+    wallYellow: 0xeadcae,
+
+    roofTerracotta: 0xc9775f,
+    roofBlue: 0x6689a1,
+    roofTeal: 0x5e8e86,
+    roofBrown: 0x8e6d5b,
+    roofSlate: 0x6f7785,
+    roofCream: 0xb8a98f,
+
+    lighthouseWhite: 0xf5f0e6,
+    lighthouseRed: 0xc96f64,
+
+    block: 0xf0ece4,
+    block2: 0xcfd4da
   };
 
-  const toon = (color) => new THREE.MeshToonMaterial({ color, side: THREE.DoubleSide });
+  const toon = (color, options = {}) => new THREE.MeshToonMaterial({
+    color,
+    side: THREE.DoubleSide,
+    transparent: options.transparent || false,
+    opacity: options.opacity ?? 1
+  });
 
   function box(w, h, d, color, x, y, z, rot = 0) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), toon(color));
@@ -137,26 +162,29 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   function whiteBuilding({
     x, z, w, d, bodyH, baseY, rot = 0,
     roof = 'gable', roofH = 2.6, ridgeAlongX = true,
+    bodyColor = C.wallIvory, roofColor = C.roofSlate,
     annex = null
   }) {
-    box(w, bodyH, d, C.block, x, baseY + bodyH / 2, z, rot);
+    box(w, bodyH, d, bodyColor, x, baseY + bodyH / 2, z, rot);
 
     if (roof === 'hip') {
-      hipRoof(w * 1.08, d * 1.08, roofH, C.block2, x, baseY + bodyH, z, rot);
+      hipRoof(w * 1.08, d * 1.08, roofH, roofColor, x, baseY + bodyH, z, rot);
     } else {
-      gableRoof(w * 1.08, d * 1.08, roofH, C.block2, x, baseY + bodyH, z, rot, ridgeAlongX);
+      gableRoof(w * 1.08, d * 1.08, roofH, roofColor, x, baseY + bodyH, z, rot, ridgeAlongX);
     }
 
     if (annex) {
       const ax = x + annex.dx;
       const az = z + annex.dz;
-      box(annex.w, annex.h, annex.d, C.block2, ax, baseY + annex.h / 2, az, rot);
+      const annexColor = annex.bodyColor || bodyColor;
+      const annexRoofColor = annex.roofColor || roofColor;
+      box(annex.w, annex.h, annex.d, annexColor, ax, baseY + annex.h / 2, az, rot);
       if (annex.roof !== false) {
         gableRoof(
           annex.w * 1.06,
           annex.d * 1.06,
           annex.roofH || 1.5,
-          C.block2,
+          annexRoofColor,
           ax,
           baseY + annex.h,
           az,
@@ -293,6 +321,14 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
     return m;
   }
 
+  const waterDeep = new THREE.Mesh(
+    new THREE.PlaneGeometry(3000, 3000),
+    new THREE.MeshToonMaterial({ color: C.oceanDeep })
+  );
+  waterDeep.rotation.x = -Math.PI / 2;
+  waterDeep.position.y = -0.12;
+  scene.add(waterDeep);
+
   const water = new THREE.Mesh(
     new THREE.PlaneGeometry(3000, 3000),
     new THREE.MeshToonMaterial({ color: C.ocean })
@@ -375,22 +411,25 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   whiteBuilding({
     x:-33, z:-35, w:16, d:9, bodyH:6.6, baseY:TOP_Y + 0.6,
     roof:'gable', roofH:3.0, ridgeAlongX:true,
-    annex:{ dx:-9.4, dz:0.8, w:7.5, d:6.5, h:4.2, roofH:1.8 }
+    bodyColor:C.wallIvory, roofColor:C.roofBlue,
+    annex:{ dx:-9.4, dz:0.8, w:7.5, d:6.5, h:4.2, roofH:1.8, bodyColor:C.wallBlue, roofColor:C.roofSlate }
   });
-  box(18, 0.7, 3.0, C.block2, -31.5, TOP_Y + 4.8, -40.0);
-  box(0.35, 3.6, 0.35, C.block2, -38, TOP_Y + 2.8, -40.0);
-  box(0.35, 3.6, 0.35, C.block2, -31.5, TOP_Y + 2.8, -40.0);
-  box(0.35, 3.6, 0.35, C.block2, -25, TOP_Y + 2.8, -40.0);
+  box(18, 0.7, 3.0, C.roofBlue, -31.5, TOP_Y + 4.8, -40.0);
+  box(0.35, 3.6, 0.35, C.roofSlate, -38, TOP_Y + 2.8, -40.0);
+  box(0.35, 3.6, 0.35, C.roofSlate, -31.5, TOP_Y + 2.8, -40.0);
+  box(0.35, 3.6, 0.35, C.roofSlate, -25, TOP_Y + 2.8, -40.0);
 
   // two small upper cottages
   whiteBuilding({
     x:8, z:-31.5, w:8, d:7.5, bodyH:4.8, baseY:TOP_Y + 0.6,
     roof:'gable', roofH:2.3, ridgeAlongX:false,
+    bodyColor:C.wallCream, roofColor:C.roofTerracotta,
     annex:{ dx:3.7, dz:2.6, w:3.4, d:3.0, h:2.5, roofH:1.2 }
   });
   whiteBuilding({
     x:27, z:-31.0, w:8.5, d:7.5, bodyH:4.9, baseY:TOP_Y + 0.6,
     roof:'hip', roofH:2.4,
+    bodyColor:C.wallMint, roofColor:C.roofTeal,
     annex:{ dx:-3.7, dz:2.5, w:3.2, d:3.0, h:2.4, roofH:1.1 }
   });
 
@@ -420,36 +459,42 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   whiteBuilding({
     x:-46, z:-2, w:13, d:9, bodyH:6.4, baseY:townBaseY,
     roof:'gable', roofH:2.8, ridgeAlongX:true,
+    bodyColor:C.wallCream, roofColor:C.roofTerracotta,
     annex:{ dx:-5.6, dz:2.8, w:4.0, d:4.6, h:3.1, roofH:1.4 }
   });
 
   whiteBuilding({
     x:-28, z:-1, w:12, d:9, bodyH:5.4, baseY:townBaseY,
     roof:'hip', roofH:2.5,
+    bodyColor:C.wallBlue, roofColor:C.roofBlue,
     annex:{ dx:4.6, dz:2.7, w:3.5, d:4.0, h:2.7, roof:false }
   });
 
   whiteBuilding({
     x:-9, z:0, w:16, d:10, bodyH:6.8, baseY:townBaseY,
     roof:'gable', roofH:3.1, ridgeAlongX:true,
+    bodyColor:C.wallIvory, roofColor:C.roofBrown,
     annex:{ dx:6.5, dz:3.2, w:4.2, d:4.5, h:3.2, roofH:1.5 }
   });
 
   whiteBuilding({
     x:-47, z:14, w:12, d:9, bodyH:5.7, baseY:townBaseY,
     roof:'hip', roofH:2.6,
+    bodyColor:C.wallRose, roofColor:C.roofBrown,
     annex:{ dx:-4.8, dz:-2.8, w:3.4, d:3.8, h:2.6, roof:false }
   });
 
   whiteBuilding({
     x:-28, z:15, w:14, d:10, bodyH:6.1, baseY:townBaseY,
     roof:'gable', roofH:2.9, ridgeAlongX:false,
+    bodyColor:C.wallMint, roofColor:C.roofTeal,
     annex:{ dx:5.5, dz:-3.1, w:4.0, d:4.1, h:3.0, roofH:1.3, ridgeAlongX:false }
   });
 
   whiteBuilding({
     x:-9, z:16, w:15, d:10, bodyH:5.8, baseY:townBaseY,
     roof:'hip', roofH:2.7,
+    bodyColor:C.wallYellow, roofColor:C.roofBlue,
     annex:{ dx:-5.8, dz:-3.0, w:3.8, d:4.2, h:2.8, roof:false }
   });
 
@@ -510,6 +555,7 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   whiteBuilding({
     x:61, z:27.5, w:8.5, d:6.2, bodyH:4.4, baseY:1.5,
     roof:'gable', roofH:2.2, ridgeAlongX:true,
+    bodyColor:C.wallBlue, roofColor:C.roofSlate,
     annex:{ dx:3.8, dz:1.8, w:2.6, d:2.8, h:2.0, roof:false }
   });
 
@@ -520,11 +566,11 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   ringRoad(6.0, 8.2, LOW_Y + 1.04, 65, 68);
 
   // lighthouse white model: base, tapered tower, gallery, lantern room, cap
-  cylinder(4.8, 4.8, 1.5, C.block2, 65, LOW_Y + 1.8, 68, 32);
-  cylinder(2.8, 4.2, 12.8, C.block, 65, LOW_Y + 8.5, 68, 32);
-  cylinder(4.0, 4.0, 0.8, C.block2, 65, LOW_Y + 15.2, 68, 32);
-  cylinder(2.5, 2.5, 2.5, C.block2, 65, LOW_Y + 16.8, 68, 24);
-  const lighthouseCap = new THREE.Mesh(new THREE.ConeGeometry(3.4, 2.2, 24), toon(C.block2));
+  cylinder(4.8, 4.8, 1.5, C.lighthouseRed, 65, LOW_Y + 1.8, 68, 32);
+  cylinder(2.8, 4.2, 12.8, C.lighthouseWhite, 65, LOW_Y + 8.5, 68, 32);
+  cylinder(4.0, 4.0, 0.8, C.lighthouseRed, 65, LOW_Y + 15.2, 68, 32);
+  cylinder(2.5, 2.5, 2.5, C.roofSlate, 65, LOW_Y + 16.8, 68, 24);
+  const lighthouseCap = new THREE.Mesh(new THREE.ConeGeometry(3.4, 2.2, 24), toon(C.lighthouseRed));
   lighthouseCap.position.set(65, LOW_Y + 19.15, 68);
   lighthouseCap.castShadow = true;
   lighthouseCap.receiveShadow = true;
