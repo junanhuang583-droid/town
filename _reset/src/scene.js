@@ -312,6 +312,354 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
   }
 
   // ------------------------------------------------------------
+  // Minimal walking pet test
+  // ------------------------------------------------------------
+  // This is intentionally NOT the real pet system yet.
+  // It only tests character scale + terrain traversal on the voxel island.
+  const PET_SPEED = 2.5;
+  const PET_MAX_STEP = 1;
+
+  const pet = new THREE.Group();
+  const petVisual = new THREE.Group();
+
+  const petBodyMat = new THREE.MeshStandardMaterial({
+    color: 0x6ecbd4,
+    roughness: 0.9,
+    metalness: 0
+  });
+
+  const petLightMat = new THREE.MeshStandardMaterial({
+    color: 0xf4fbf8,
+    roughness: 0.9,
+    metalness: 0
+  });
+
+  const petDarkMat = new THREE.MeshStandardMaterial({
+    color: 0x304b56,
+    roughness: 0.95,
+    metalness: 0
+  });
+
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(0.46, 16, 12),
+    petBodyMat
+  );
+  body.scale.set(0.86, 1.12, 0.76);
+  body.position.y = 0.55;
+  body.castShadow = true;
+  petVisual.add(body);
+
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.38, 16, 12),
+    petBodyMat
+  );
+  head.position.set(0, 1.18, 0);
+  head.scale.set(1.0, 0.92, 0.92);
+  head.castShadow = true;
+  petVisual.add(head);
+
+  const belly = new THREE.Mesh(
+    new THREE.SphereGeometry(0.27, 14, 10),
+    petLightMat
+  );
+  belly.position.set(0, 0.58, 0.31);
+  belly.scale.set(0.78, 1.0, 0.35);
+  petVisual.add(belly);
+
+  const eyeGeometry = new THREE.SphereGeometry(0.045, 8, 6);
+  for (const x of [-0.12, 0.12]) {
+    const eye = new THREE.Mesh(eyeGeometry, petDarkMat);
+    eye.position.set(x, 1.22, 0.34);
+    petVisual.add(eye);
+  }
+
+  const footGeometry = new THREE.SphereGeometry(0.14, 10, 8);
+  for (const x of [-0.22, 0.22]) {
+    const foot = new THREE.Mesh(footGeometry, petDarkMat);
+    foot.position.set(x, 0.12, 0.02);
+    foot.scale.set(1.0, 0.55, 1.25);
+    foot.castShadow = true;
+    petVisual.add(foot);
+  }
+
+  pet.add(petVisual);
+  scene.add(pet);
+
+  let petGrid = null;
+  let petPath = [];
+  let petPathIndex = 0;
+  let petIdleTimer = 0;
+  let petWalkTime = 0;
+  let petNeedsRespawn = true;
+
+  function petGroundY(gx, gz) {
+    const column = columns.get(keyOf(gx, gz));
+    if (!column) return null;
+    return column.h * LEVEL_H + 0.18;
+  }
+
+  function isPetWalkableStep(ax, az, bx, bz) {
+    const a = columns.get(keyOf(ax, az));
+    const b = columns.get(keyOf(bx, bz));
+    if (!a || !b) return false;
+    return Math.abs(a.h - b.h) <= PET_MAX_STEP;
+  }
+
+  function heuristic(ax, az, bx, bz) {
+    return Math.abs(ax - bx) + Math.abs(az - bz);
+  }
+
+  function findPetPath(start, goal) {
+    const startKey = keyOf(start.gx, start.gz);
+    const goalKey = keyOf(goal.gx, goal.gz);
+    if (startKey === goalKey) return [start];
+
+    const open = new Map();
+    const cameFrom = new Map();
+    const gScore = new Map();
+    const closed = new Set();
+
+    open.set(startKey, {
+      gx: start.gx,
+      gz: start.gz,
+      f: heuristic(start.gx, start.gz, goal.gx, goal.gz)
+    });
+    gScore.set(startKey, 0);
+
+    let inspected = 0;
+    const maxInspected = 12000;
+
+    while (open.size && inspected < maxInspected) {
+      inspected += 1;
+
+      let currentKey = null;
+      let current = null;
+
+      for (const [candidateKey, candidate] of open) {
+        if (!current || candidate.f < current.f) {
+          currentKey = candidateKey;
+          current = candidate;
+        }
+      }
+
+      if (!current || currentKey == null) break;
+
+      if (currentKey === goalKey) {
+        const path = [{ gx: goal.gx, gz: goal.gz }];
+        let backKey = goalKey;
+
+        while (cameFrom.has(backKey)) {
+          backKey = cameFrom.get(backKey);
+          const [gx, gz] = parseKey(backKey);
+          path.push({ gx, gz });
+        }
+
+        path.reverse();
+        return path;
+      }
+
+      open.delete(currentKey);
+      closed.add(currentKey);
+
+      const neighbors = [
+        [current.gx + 1, current.gz],
+        [current.gx - 1, current.gz],
+        [current.gx, current.gz + 1],
+        [current.gx, current.gz - 1]
+      ];
+
+      for (const [ngx, ngz] of neighbors) {
+        const neighborKey = keyOf(ngx, ngz);
+        if (closed.has(neighborKey)) continue;
+        if (!isPetWalkableStep(current.gx, current.gz, ngx, ngz)) continue;
+
+        const tentative = (gScore.get(currentKey) ?? Infinity) + 1;
+        const oldScore = gScore.get(neighborKey) ?? Infinity;
+
+        if (tentative >= oldScore) continue;
+
+        cameFrom.set(neighborKey, currentKey);
+        gScore.set(neighborKey, tentative);
+
+        open.set(neighborKey, {
+          gx: ngx,
+          gz: ngz,
+          f: tentative + heuristic(ngx, ngz, goal.gx, goal.gz)
+        });
+      }
+    }
+
+    return null;
+  }
+
+  function choosePetSpawn() {
+    const candidates = [];
+
+    for (const [key, column] of columns) {
+      const [gx, gz] = parseKey(key);
+
+      if (
+        Math.abs(gx) <= 28 &&
+        Math.abs(gz) <= 24 &&
+        column.h >= 5 &&
+        column.h <= 10 &&
+        column.surface !== 'rock'
+      ) {
+        candidates.push({ gx, gz });
+      }
+    }
+
+    if (!candidates.length) {
+      for (const key of columns.keys()) {
+        const [gx, gz] = parseKey(key);
+        candidates.push({ gx, gz });
+      }
+    }
+
+    if (!candidates.length) return null;
+
+    candidates.sort((a, b) =>
+      (Math.abs(a.gx) + Math.abs(a.gz)) -
+      (Math.abs(b.gx) + Math.abs(b.gz))
+    );
+
+    const pool = candidates.slice(0, Math.min(160, candidates.length));
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  function respawnPet() {
+    const spawn = choosePetSpawn();
+    if (!spawn) {
+      pet.visible = false;
+      return;
+    }
+
+    const y = petGroundY(spawn.gx, spawn.gz);
+    if (y == null) return;
+
+    pet.visible = true;
+    petGrid = { gx: spawn.gx, gz: spawn.gz };
+    pet.position.set(spawn.gx * CELL, y, spawn.gz * CELL);
+    petPath = [];
+    petPathIndex = 0;
+    petIdleTimer = 0.25;
+    petNeedsRespawn = false;
+  }
+
+  function choosePetDestination() {
+    if (!petGrid) return false;
+
+    const candidates = [];
+
+    for (let attempt = 0; attempt < 90; attempt++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 8 + Math.random() * 28;
+
+      const gx = Math.round(petGrid.gx + Math.cos(angle) * radius);
+      const gz = Math.round(petGrid.gz + Math.sin(angle) * radius);
+      const column = columns.get(keyOf(gx, gz));
+
+      if (!column) continue;
+      candidates.push({ gx, gz });
+    }
+
+    for (const goal of candidates) {
+      const path = findPetPath(petGrid, goal);
+      if (path && path.length > 3) {
+        petPath = path;
+        petPathIndex = 1;
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function invalidatePetRoute() {
+    petPath = [];
+    petPathIndex = 0;
+
+    if (!petGrid || !columns.has(keyOf(petGrid.gx, petGrid.gz))) {
+      petNeedsRespawn = true;
+      return;
+    }
+
+    const ground = petGroundY(petGrid.gx, petGrid.gz);
+    if (ground != null) pet.position.y = ground;
+    petIdleTimer = 0.2;
+  }
+
+  function updatePet(dt) {
+    if (editMode) return;
+
+    if (petNeedsRespawn || !petGrid) {
+      respawnPet();
+      return;
+    }
+
+    petWalkTime += dt;
+
+    if (petIdleTimer > 0) {
+      petIdleTimer -= dt;
+      petVisual.position.y = Math.sin(petWalkTime * 2.4) * 0.018;
+      return;
+    }
+
+    if (!petPath.length || petPathIndex >= petPath.length) {
+      if (!choosePetDestination()) {
+        petIdleTimer = 0.7;
+      }
+      return;
+    }
+
+    const node = petPath[petPathIndex];
+    const targetGround = petGroundY(node.gx, node.gz);
+
+    if (targetGround == null) {
+      invalidatePetRoute();
+      return;
+    }
+
+    const target = new THREE.Vector3(
+      node.gx * CELL,
+      targetGround,
+      node.gz * CELL
+    );
+
+    const delta = target.clone().sub(pet.position);
+    const planarDistance = Math.hypot(delta.x, delta.z);
+
+    if (planarDistance < 0.08) {
+      pet.position.copy(target);
+      petGrid = { gx: node.gx, gz: node.gz };
+      petPathIndex += 1;
+
+      if (petPathIndex >= petPath.length) {
+        petIdleTimer = 0.25 + Math.random() * 0.35;
+      }
+      return;
+    }
+
+    const moveDistance = Math.min(PET_SPEED * dt, planarDistance);
+    const nx = delta.x / planarDistance;
+    const nz = delta.z / planarDistance;
+
+    pet.position.x += nx * moveDistance;
+    pet.position.z += nz * moveDistance;
+
+    const progress = moveDistance / Math.max(planarDistance, 0.0001);
+    pet.position.y = THREE.MathUtils.lerp(
+      pet.position.y,
+      target.y,
+      Math.min(1, progress * 1.8)
+    );
+
+    pet.rotation.y = Math.atan2(nx, nz);
+    petVisual.position.y = Math.abs(Math.sin(petWalkTime * 8.0)) * 0.055;
+    petVisual.rotation.z = Math.sin(petWalkTime * 8.0) * 0.025;
+  }
+
+  // ------------------------------------------------------------
   // Rendering rule:
   // The island body is ALWAYS rock.
   // Grass and sand are thin TOP SURFACE caps only.
@@ -532,6 +880,7 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
     }
 
     rebuildMeshes();
+    invalidatePetRoute();
     saveLocal();
   }
 
@@ -881,6 +1230,8 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
       undoStack.length = 0;
       redoStack.length = 0;
       rebuildMeshes();
+      petNeedsRespawn = true;
+      invalidatePetRoute();
       saveLocal();
     } catch {
       alert('地图文件无法读取。');
@@ -898,6 +1249,8 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
     undoStack.length = 0;
     redoStack.length = 0;
     rebuildMeshes();
+    petNeedsRespawn = true;
+    invalidatePetRoute();
     saveLocal();
   });
 
@@ -987,12 +1340,17 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
   window.addEventListener('resize', resize);
   resize();
 
+  const clock = new THREE.Clock();
+
   function animate() {
     requestAnimationFrame(animate);
+    const dt = Math.min(clock.getDelta(), 0.05);
     controls.update();
+    updatePet(dt);
     renderer.render(scene, camera);
   }
 
+  respawnPet();
   animate();
 
   return {
