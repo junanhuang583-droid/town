@@ -314,101 +314,154 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
   // ------------------------------------------------------------
   // Minimal walking pet test
   // ------------------------------------------------------------
-  // v0.2: real leg swing + step-aware movement.
-  // Still intentionally tiny: only walking, no needs/interactions/AI.
+  // v0.3: whale-girl 2D sprite visual + existing terrain traversal.
+  // Only idle/walk are enabled. No needs/interactions/AI yet.
   const PET_SPEED = 2.35;
   const PET_MAX_STEP = 1;
 
+  const PET_ATLAS_COLS = 8;
+  const PET_ATLAS_ROWS = 11;
+  const PET_SPRITE_HEIGHT = 2.75;
+  const PET_SPRITE_WIDTH = PET_SPRITE_HEIGHT * (192 / 208);
+  const PET_LOCAL_ATLAS = './assets/whale-girl/spritesheet.webp';
+  const PET_PINNED_FALLBACK =
+    'https://raw.githubusercontent.com/f0909172434/deepseek-girl-codex-pet/2572709632b0e81401b9e92994f2c3786c186397/pet/spritesheet.webp';
+
   const pet = new THREE.Group();
-  const petVisual = new THREE.Group();
 
-  const petBodyMat = new THREE.MeshStandardMaterial({
-    color: 0x6ecbd4,
-    roughness: 0.9,
-    metalness: 0
+  const petSpriteMaterial = new THREE.SpriteMaterial({
+    transparent: true,
+    depthTest: true,
+    depthWrite: false,
+    alphaTest: 0.025
   });
 
-  const petLightMat = new THREE.MeshStandardMaterial({
-    color: 0xf4fbf8,
-    roughness: 0.9,
-    metalness: 0
-  });
+  const petSprite = new THREE.Sprite(petSpriteMaterial);
+  petSprite.scale.set(PET_SPRITE_WIDTH, PET_SPRITE_HEIGHT, 1);
 
-  const petDarkMat = new THREE.MeshStandardMaterial({
-    color: 0x304b56,
-    roughness: 0.95,
-    metalness: 0
-  });
+  // The source frames contain a little transparent padding below the feet.
+  // Lowering the quad slightly keeps the visible feet visually on the terrain.
+  petSprite.position.y = 1.25;
+  petSprite.visible = false;
 
-  const body = new THREE.Mesh(
-    new THREE.SphereGeometry(0.46, 16, 12),
-    petBodyMat
-  );
-  body.scale.set(0.86, 1.08, 0.76);
-  body.position.y = 0.91;
-  body.castShadow = true;
-  petVisual.add(body);
-
-  const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.36, 16, 12),
-    petBodyMat
-  );
-  head.position.set(0, 1.48, 0);
-  head.scale.set(1.0, 0.94, 0.94);
-  head.castShadow = true;
-  petVisual.add(head);
-
-  const belly = new THREE.Mesh(
-    new THREE.SphereGeometry(0.27, 14, 10),
-    petLightMat
-  );
-  belly.position.set(0, 0.91, 0.30);
-  belly.scale.set(0.78, 1.0, 0.35);
-  petVisual.add(belly);
-
-  const eyeGeometry = new THREE.SphereGeometry(0.045, 8, 6);
-  for (const x of [-0.12, 0.12]) {
-    const eye = new THREE.Mesh(eyeGeometry, petDarkMat);
-    eye.position.set(x, 1.52, 0.32);
-    petVisual.add(eye);
-  }
-
-  function makeLeg(x) {
-    const leg = new THREE.Group();
-    leg.position.set(x, 0.52, 0);
-
-    const shin = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.07, 0.085, 0.42, 10),
-      petBodyMat
-    );
-    shin.position.y = -0.21;
-    shin.castShadow = true;
-    leg.add(shin);
-
-    const foot = new THREE.Mesh(
-      new THREE.SphereGeometry(0.14, 10, 8),
-      petDarkMat
-    );
-    foot.position.set(0, -0.43, 0.065);
-    foot.scale.set(1.0, 0.55, 1.35);
-    foot.castShadow = true;
-    leg.add(foot);
-
-    petVisual.add(leg);
-    return leg;
-  }
-
-  const leftLeg = makeLeg(-0.20);
-  const rightLeg = makeLeg(0.20);
-
-  pet.add(petVisual);
+  pet.add(petSprite);
   scene.add(pet);
+
+  let petAtlas = null;
+  let petAtlasSource = 'loading';
+  let petAnimMode = 'idle';
+  let petAnimTime = 0;
+  let petAnimFrame = -1;
+  let petFacingRight = true;
+
+  const PET_ANIMS = {
+    idle: { row: 0, frames: 6, fps: 5.2 },
+    right: { row: 1, frames: 8, fps: 9.5 },
+    left: { row: 2, frames: 8, fps: 9.5 }
+  };
+
+  function applyPetAtlasFrame(row, frame) {
+    if (!petAtlas) return;
+
+    petAtlas.repeat.set(1 / PET_ATLAS_COLS, 1 / PET_ATLAS_ROWS);
+    petAtlas.offset.set(
+      frame / PET_ATLAS_COLS,
+      (PET_ATLAS_ROWS - row - 1) / PET_ATLAS_ROWS
+    );
+    petAtlas.needsUpdate = true;
+  }
+
+  function setPetAnimMode(mode, restart = false) {
+    if (!PET_ANIMS[mode]) mode = 'idle';
+
+    if (petAnimMode !== mode || restart) {
+      petAnimMode = mode;
+      petAnimTime = 0;
+      petAnimFrame = -1;
+    }
+  }
+
+  function updatePetAtlasAnimation(dt, moving, moveDx = 0, moveDz = 0) {
+    if (moving && (Math.abs(moveDx) > 0.0001 || Math.abs(moveDz) > 0.0001)) {
+      camera.updateMatrixWorld();
+
+      const screenRight = new THREE.Vector3(1, 0, 0)
+        .applyQuaternion(camera.quaternion);
+      screenRight.y = 0;
+
+      const moveDir = new THREE.Vector3(moveDx, 0, moveDz);
+
+      if (screenRight.lengthSq() > 0.0001 && moveDir.lengthSq() > 0.0001) {
+        screenRight.normalize();
+        moveDir.normalize();
+
+        const screenSide = moveDir.dot(screenRight);
+
+        // When walking almost straight toward/away from the camera,
+        // keep the previous facing direction so the sprite does not flicker.
+        if (screenSide > 0.12) petFacingRight = true;
+        else if (screenSide < -0.12) petFacingRight = false;
+      }
+
+      setPetAnimMode(petFacingRight ? 'right' : 'left');
+    } else {
+      setPetAnimMode('idle');
+    }
+
+    const spec = PET_ANIMS[petAnimMode];
+    petAnimTime += dt;
+
+    const nextFrame = Math.floor(petAnimTime * spec.fps) % spec.frames;
+
+    if (nextFrame !== petAnimFrame) {
+      petAnimFrame = nextFrame;
+      applyPetAtlasFrame(spec.row, nextFrame);
+    }
+  }
+
+  function configurePetAtlas(texture, source) {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+
+    petAtlas = texture;
+    petAtlasSource = source;
+    petSpriteMaterial.map = texture;
+    petSpriteMaterial.needsUpdate = true;
+    petSprite.visible = true;
+
+    setPetAnimMode('idle', true);
+    updatePetAtlasAnimation(0, false);
+    updateStatus();
+  }
+
+  const petTextureLoader = new THREE.TextureLoader();
+  petTextureLoader.setCrossOrigin('anonymous');
+
+  petTextureLoader.load(
+    PET_LOCAL_ATLAS,
+    texture => configurePetAtlas(texture, 'local'),
+    undefined,
+    () => {
+      petTextureLoader.load(
+        PET_PINNED_FALLBACK,
+        texture => configurePetAtlas(texture, 'pinned-fallback'),
+        undefined,
+        () => {
+          petAtlasSource = 'failed';
+          petSprite.visible = false;
+          updateStatus();
+        }
+      );
+    }
+  );
 
   let petGrid = null;
   let petPath = [];
   let petPathIndex = 0;
   let petIdleTimer = 0;
-  let petWalkPhase = 0;
   let petNeedsRespawn = true;
   let petSegment = null;
 
@@ -417,7 +470,7 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
     if (!column) return null;
 
     // Surface cap top is h * LEVEL_H + 0.16.
-    // A tiny clearance keeps the feet above the cap without visibly floating.
+    // A tiny clearance keeps the visual foot line above the cap.
     return column.h * LEVEL_H + 0.18;
   }
 
@@ -551,10 +604,8 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
   }
 
   function resetPetPose() {
-    leftLeg.rotation.x = 0;
-    rightLeg.rotation.x = 0;
-    petVisual.position.y = 0;
-    petVisual.rotation.z = 0;
+    setPetAnimMode('idle', true);
+    updatePetAtlasAnimation(0, false);
   }
 
   function respawnPet() {
@@ -633,12 +684,10 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
       duration: Math.max(0.28, distance / PET_SPEED),
       start: new THREE.Vector3(sx, startY, sz),
       end: new THREE.Vector3(ex, endY, ez),
+      dx,
+      dz,
       levelDelta: endColumn.h - startColumn.h
     };
-
-    if (distance > 0.0001) {
-      pet.rotation.y = Math.atan2(dx / distance, dz / distance);
-    }
 
     return true;
   }
@@ -648,16 +697,14 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
     const endY = segment.end.y;
 
     if (segment.levelDelta > 0) {
-      // Rise BEFORE crossing the voxel edge at t=0.5.
-      // This is what stops the feet/body from cutting through the vertical rock wall.
+      // Rise before crossing the voxel edge to avoid clipping the rock wall.
       const rise = smoothstep(0.16, 0.46, t);
       const lift = Math.sin(Math.PI * t) * 0.11;
       return THREE.MathUtils.lerp(startY, endY, rise) + lift;
     }
 
     if (segment.levelDelta < 0) {
-      // Stay on the upper floor until the character has crossed the edge,
-      // then lower onto the next cell.
+      // Cross the upper edge first, then lower onto the next cell.
       const fall = smoothstep(0.54, 0.84, t);
       const lift = Math.sin(Math.PI * t) * 0.07;
       return THREE.MathUtils.lerp(startY, endY, fall) + lift;
@@ -666,30 +713,8 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
     return startY;
   }
 
-  function animatePetLegs(dt, segmentT, levelDelta) {
-    petWalkPhase += dt * 9.2;
-
-    let swing = Math.sin(petWalkPhase) * 0.55;
-
-    // On a step, exaggerate the leading-leg motion slightly.
-    if (levelDelta !== 0) {
-      const stepPulse = Math.sin(Math.PI * segmentT);
-      swing *= 1 + stepPulse * 0.35;
-    }
-
-    leftLeg.rotation.x = swing;
-    rightLeg.rotation.x = -swing;
-
-    petVisual.position.y = Math.abs(Math.sin(petWalkPhase * 2)) * 0.025;
-    petVisual.rotation.z = Math.sin(petWalkPhase) * 0.016;
-  }
-
   function settlePetPose(dt) {
-    const k = Math.min(1, dt * 12);
-    leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, k);
-    rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, k);
-    petVisual.position.y = THREE.MathUtils.lerp(petVisual.position.y, 0, k);
-    petVisual.rotation.z = THREE.MathUtils.lerp(petVisual.rotation.z, 0, k);
+    updatePetAtlasAnimation(dt, false);
   }
 
   function invalidatePetRoute() {
@@ -757,7 +782,7 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
     pet.position.z = THREE.MathUtils.lerp(segment.start.z, segment.end.z, t);
     pet.position.y = petSegmentY(segment, t);
 
-    animatePetLegs(dt, t, segment.levelDelta);
+    updatePetAtlasAnimation(dt, true, segment.dx, segment.dz);
 
     if (t >= 1) {
       pet.position.copy(segment.end);
@@ -1401,7 +1426,7 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
     const mode = editMode ? '编辑模式' : '视角模式';
 
     status.innerHTML =
-      `<b>Voxel Island v2 · ${mode}</b>　工具：${toolLabel()}　表面：${surfaceLabel()}　画笔：${brushSize}×${brushSize}　地块：${columns.size}<br>` +
+      `<b>Voxel Island v2 · Pet v0.3 · ${mode}</b>　工具：${toolLabel()}　表面：${surfaceLabel()}　画笔：${brushSize}×${brushSize}　地块：${columns.size}<br>宠物图集：${petAtlasSource === 'local' ? '本地' : petAtlasSource === 'pinned-fallback' ? '固定源备用' : petAtlasSource === 'failed' ? '加载失败' : '加载中'}<br>` +
       (editMode
         ? '点击地形修改；点击海面可直接从海里新增地块。所有高差侧面会自动显示岩壁。 '
         : '单指旋转，双指缩放/平移。进入编辑后再修改地形。 ');
