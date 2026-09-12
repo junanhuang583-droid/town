@@ -487,12 +487,12 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   prism(topPlateau, MID_Y, TOP_Y, C.cliff);
   topSlab(topPlateau, TOP_Y + 0.6, 0.6, C.topGrass);
 
-  // Right beach is attached to the main island's coast at sea level.
-  // Its left edge deliberately overlaps the base island, so no water gap can appear.
+  // Right beach hugs the main island. Its landward edge sits directly below
+  // the rear boardwalk instead of reading as a detached sand patch.
   const beach = [
-    [44,-8],[56,-8],[66,-4],[73,3],[76,11],[75,20],
-    [70,29],[62,36],[52,41],[43,40],[37,35],[36,28],
-    [38,20],[41,11],[43,2]
+    [43,-5],[53,-7],[63,-5],[71,0],[76,7],[77,14],
+    [75,21],[70,27],[64,32],[57,36],[50,38],[44,36],
+    [40,31],[39,24],[40,17],[41,10],[42,3]
   ];
   topSlab(beach, 1.15, 0.35, C.sand);
 
@@ -634,36 +634,40 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   // The middle terrace also uses its own faceted cliff silhouette instead of long wall slabs.
 
   // ------------------------------------------------------------
-  // Low coast: continuous boardwalk, beach path, pier
+  // Low coast: front boardwalk -> rear-beach corridor -> pier
   // ------------------------------------------------------------
-  ribbon([[-61,29],[-49,33],[-35,36],[-20,39],[-4,40],[11,39],[24,36],[34,31]], 4.2, LOW_Y + 0.75, C.wood);
-  ribbon([[34,31],[36,35],[37,38]], 3.9, LOW_Y + 0.75, C.wood);
+  ribbon([[-61,29],[-49,33],[-35,36],[-20,39],[-4,40],[11,39],[24,36],[33,31]], 4.2, LOW_Y + 0.75, C.wood);
 
-  // Sparse structural supports make the boardwalk read as elevated construction.
-  for (const [x,z] of [[-49,32],[-31,36],[-12,38],[8,38],[27,34],[39,39]]) {
+  // Critical blueprint feature: the boardwalk turns around the right side of
+  // the main island and runs directly behind the beach.
+  ribbon([[33,31],[36,27],[39,22],[41,16],[42,10],[43,4]], 3.9, LOW_Y + 0.75, C.wood);
+  ribbon([[43,4],[47,1],[52,-1],[58,-1],[63,1],[67,5],[70,10],[71,16],[70,22],[67,27],[63,31]], 3.9, LOW_Y + 0.75, C.wood);
+
+  // Sparse supports make the elevated rear-beach corridor read as one continuous structure.
+  for (const [x,z] of [[-49,32],[-31,36],[-12,38],[8,38],[27,34],[38,23],[42,11],[48,1],[59,-1],[68,7],[70,20],[65,29]]) {
     box(0.7, LOW_Y + 0.7, 0.7, C.block2, x, (LOW_Y + 0.7)/2, z);
   }
 
-  // beach-side wooden path follows the attached right shoreline.
-  ribbon([[41,3],[45,10],[48,18],[51,25],[55,30]], 3.5, 1.55, C.wood);
+  // A short beach-level access spur links sand activities to the rear corridor.
+  ribbon([[45,8],[49,12],[52,17],[54,22]], 3.2, 1.55, C.wood);
 
-  // Structural tide-pool placeholders, still blockout geometry only.
-  cylinder(4.6, 5.2, 0.18, C.ocean, 55, 1.24, 8, 28);
-  cylinder(3.2, 3.8, 0.16, C.ocean, 61, 1.22, 18, 24);
+  // Structural tide-pool placeholders.
+  cylinder(4.2, 4.8, 0.18, C.ocean, 58, 1.24, 9, 28);
+  cylinder(3.0, 3.6, 0.16, C.ocean, 63, 1.22, 18, 24);
 
-  // pier now starts from the right beach/shore and projects clearly into open water.
-  ribbon([[55,30],[66,30],[78,30],[90,30],[102,30]], 4.0, 1.55, C.wood);
-  box(15, 0.46, 9, C.wood, 108, 1.55, 30);
+  // Pier starts at the right end of the rear-beach corridor, not from the sand.
+  ribbon([[63,31],[74,31],[86,31],[98,31]], 4.0, 1.55, C.wood);
+  box(14, 0.46, 9, C.wood, 104, 1.55, 31);
 
   // Pier posts below the main axis and terminal platform.
-  for (const x of [58,68,78,88,98,105,111]) {
-    box(0.65, 1.45, 0.65, C.block2, x, 0.75, 28.7);
-    box(0.65, 1.45, 0.65, C.block2, x, 0.75, 31.3);
+  for (const x of [66,76,86,96,102,107]) {
+    box(0.65, 1.45, 0.65, C.block2, x, 0.75, 29.7);
+    box(0.65, 1.45, 0.65, C.block2, x, 0.75, 32.3);
   }
 
-  // pier house white model near the inner pier
+  // Pier house sits at the shore-side entrance to the pier.
   whiteBuilding({
-    x:64, z:25.5, w:8.5, d:6.2, bodyH:4.4, baseY:1.5,
+    x:67, z:26.0, w:8.5, d:6.2, bodyH:4.4, baseY:1.5,
     roof:'gable', roofH:2.2, ridgeAlongX:true,
     bodyColor:C.wallBlue, roofColor:C.roofSlate,
     annex:{ dx:3.8, dz:1.8, w:2.6, d:2.8, h:2.0, roof:false }
@@ -741,16 +745,16 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
 
   // Beach edge and tide pools: rocks plus two soft foam bands.
   for (const [x,z,s] of [
-    [43,-3,1.0],[52,-2,0.75],[63,3,0.9],[66,14,0.85],[61,26,0.9],[54,34,0.75],
-    [49,13,0.55],[58,22,0.6]
+    [45,-2,0.9],[54,-4,0.72],[66,1,0.86],[72,10,0.82],[68,22,0.82],[59,33,0.72],
+    [50,12,0.52],[61,22,0.56]
   ]) coastRock(x, 0.15, z, s, C.stoneAccent);
 
-  ribbon([[40,-5],[49,-5],[58,-2],[64,3],[67,10]], 0.65, 0.08, C.foam, 28);
-  ribbon([[67,13],[66,20],[62,27],[56,33],[49,36]], 0.55, 0.08, C.foam, 24);
+  ribbon([[43,-4],[51,-6],[60,-4],[67,0],[72,6]], 0.65, 0.08, C.foam, 28);
+  ribbon([[74,10],[73,17],[70,24],[65,30],[58,35],[50,37]], 0.55, 0.08, C.foam, 26);
 
   // A few small beach markers keep the sand readable without crowding it.
-  signPost(42, 1.15, 5, Math.PI / 2);
-  bench(47, 1.15, 26, Math.PI / 2);
+  signPost(45, 1.15, 7, Math.PI / 2);
+  bench(52, 1.15, 27, Math.PI / 2);
 
   // Coast silhouette: keep large rocks, then add smaller rhythm pieces.
   const rocks = [
@@ -781,13 +785,17 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   bench(78, LOW_Y + 1.0, 70, Math.PI / 2);
   signPost(60, LOW_Y + 1.0, 62, 0.35);
 
-  // Small railings on the boardwalk/pier, enough to communicate safety without enclosing everything.
-  for (const [x,z] of [[-45,33],[-26,36],[-7,38],[13,37],[30,32],[55,32],[72,32],[88,32]]) {
+  // Railings now continue around the restored beach-rear boardwalk and onto the pier approach.
+  for (const [x,z] of [[-45,33],[-26,36],[-7,38],[13,37],[30,32],[38,23],[42,11],[48,1],[59,-1],[68,7],[70,20],[65,29],[76,31],[90,31]]) {
     box(0.18, 1.25, 0.18, C.fence, x, LOW_Y + 1.35, z);
   }
   segmentBeam(-45,33,-26,36,0.18,0.18,LOW_Y + 1.9,C.fence);
   segmentBeam(-26,36,-7,38,0.18,0.18,LOW_Y + 1.9,C.fence);
   segmentBeam(-7,38,13,37,0.18,0.18,LOW_Y + 1.9,C.fence);
+  segmentBeam(33,31,41,16,0.18,0.18,LOW_Y + 1.9,C.fence);
+  segmentBeam(43,4,58,-1,0.18,0.18,LOW_Y + 1.9,C.fence);
+  segmentBeam(58,-1,70,10,0.18,0.18,LOW_Y + 1.9,C.fence);
+  segmentBeam(70,10,67,27,0.18,0.18,LOW_Y + 1.9,C.fence);
 
   // ------------------------------------------------------------
   // Camera controls
