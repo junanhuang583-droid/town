@@ -497,12 +497,15 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   // 2) TOP plain: the station highland sitting on the main plain.
   // There is deliberately NO third green lower plain.
   // ------------------------------------------------------------
+  // Rebuilt from the reference: this is the actual middle plain footprint,
+  // not the old oversized lower-ring footprint.
   const mainIsland = [
-    [-72,-58],[-52,-62],[-28,-63],[-4,-62],[20,-59],[40,-54],
-    [54,-46],[60,-36],[60,-25],[56,-15],[52,-7],[49,2],
-    [46,12],[43,22],[39,30],[31,37],[19,42],[4,45],
-    [-13,45],[-31,43],[-47,39],[-59,33],[-67,25],[-71,15],
-    [-73,4],[-73,-10],[-72,-25],[-72,-42]
+    [-68,-52],[-51,-57],[-30,-59],[-8,-58],[14,-55],[33,-49],
+    [45,-42],[49,-34],[48,-26],[43,-20],[36,-16],[31,-13],
+    [35,-8],[39,-2],[41,5],[41,12],[39,18],[35,23],
+    [30,27],[23,31],[14,34],[2,36],[-12,36],[-27,34],
+    [-42,31],[-54,26],[-62,20],[-66,12],[-68,2],[-69,-12],
+    [-69,-28],[-69,-42]
   ];
   prism(mainIsland, 0.25, MAIN_Y, C.cliff);
   topSlab(mainIsland, MAIN_Y + 0.55, 0.55, C.midGrass);
@@ -516,12 +519,11 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   prism(topPlateau, MAIN_Y, TOP_Y, C.cliff);
   topSlab(topPlateau, TOP_Y + 0.6, 0.6, C.topGrass);
 
-  // Right beach hugs the main island. Its landward edge sits directly below
-  // the rear boardwalk instead of reading as a detached sand patch.
+  // Beach sits at sea level directly below the main plain's right cliff.
   const beach = [
-    [43,-5],[53,-7],[63,-5],[71,0],[76,7],[77,14],
-    [75,21],[70,27],[64,32],[57,36],[50,38],[44,36],
-    [40,31],[39,24],[40,17],[41,10],[42,3]
+    [39,-10],[50,-11],[60,-8],[69,-3],[75,4],[77,11],
+    [76,18],[72,24],[66,29],[59,33],[51,35],[44,34],
+    [38,30],[35,25],[35,18],[36,10],[37,2],[38,-5]
   ];
   topSlab(beach, 1.15, 0.35, C.sand);
 
@@ -655,52 +657,70 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   cylinder(4.1, 4.1, 0.9, C.block2, 16, MAIN_Y + 1.45, 8, 40);
   cylinder(1.45, 1.45, 5.2, C.block2, 16, MAIN_Y + 4.0, 8, 24);
 
-  // Plaza-to-boardwalk stair: a local cliff-edge descent, not a third terrain level.
-  stairs(16, 27.0, 5.4, 15.5, 14, MAIN_Y + 0.35, BOARDWALK_Y + 0.15, true);
+  // Plaza-to-boardwalk stair: local descent from the middle plain to the cliff boardwalk.
+  stairs(16, 25.8, 5.4, 12.5, 13, MAIN_Y + 0.35, BOARDWALK_Y + 0.15, true);
   landing(16, 20.0, 7.0, 4.0, MAIN_Y + 0.69);
-  landing(16, 34.2, 7.0, 4.2, BOARDWALK_Y + 0.05);
+  landing(16, 31.2, 7.0, 4.2, BOARDWALK_Y + 0.05);
 
   // The middle terrace also uses its own faceted cliff silhouette instead of long wall slabs.
 
   // ------------------------------------------------------------
-  // MAIN-LEVEL cliff boardwalks
-  // These are constructions attached to the main plain's cliff, not a lower green level.
+  // Rebuilt cliff boardwalks from the reference.
+  // A) one front boardwalk attached to the middle plain's front cliff;
+  // B) one right-side boardwalk between cliff and beach.
+  // There is no green lower terrace under either of them.
   // ------------------------------------------------------------
-  ribbon([[-61,29],[-49,33],[-35,36],[-20,39],[-4,40],[11,39],[24,36],[33,31]], 4.2, BOARDWALK_Y, C.wood);
+  const frontBoardwalk = [
+    [-60,24],[-51,28],[-40,31],[-27,33],[-13,34],[1,33],
+    [13,31],[23,28],[30,24]
+  ];
+  ribbon(frontBoardwalk, 4.2, BOARDWALK_Y, C.wood);
 
-  // Right-side boardwalk follows the main island's cliff directly above the beach.
-  ribbon([[33,31],[38,27],[42,22],[45,16],[47,9],[49,2],[52,-5],[55,-12]], 3.9, BOARDWALK_Y, C.wood);
+  const beachBoardwalk = [
+    [30,24],[33,20],[35,15],[36,9],[36.5,3],[37,-3],[39,-8]
+  ];
+  ribbon(beachBoardwalk, 3.9, BOARDWALK_Y, C.wood);
+
+  // Structural posts under the rebuilt cliff-edge boardwalk only.
+  for (const [x,z] of [
+    [-52,28],[-38,31],[-23,33],[-8,34],[8,32],[22,28],
+    [32,21],[35,13],[36.5,4],[38,-5]
+  ]) {
+    box(0.65, BOARDWALK_Y, 0.65, C.woodDark, x, BOARDWALK_Y / 2, z);
+  }
 
   // Structural tide-pool placeholders.
   cylinder(4.2, 4.8, 0.18, C.ocean, 58, 1.24, 9, 28);
   cylinder(3.0, 3.6, 0.16, C.ocean, 63, 1.22, 18, 24);
 
-  // Pier starts at the right end of the rear-beach corridor, not from the sand.
-  ribbon([[63,31],[74,31],[86,31],[98,31]], 4.0, 1.55, C.wood);
-  box(14, 0.46, 9, C.wood, 104, 1.55, 31);
+  // Pier branches from the beach-side coastal node.
+  const pierY = 1.55;
+  ribbon([[36,27],[48,27],[61,27],[74,27],[87,27]], 4.0, pierY, C.wood);
+  box(14, 0.46, 9, C.wood, 93, pierY, 27);
 
-  // Pier posts below the main axis and terminal platform.
-  for (const x of [66,76,86,96,102,107]) {
-    box(0.65, 1.45, 0.65, C.block2, x, 0.75, 29.7);
-    box(0.65, 1.45, 0.65, C.block2, x, 0.75, 32.3);
+  for (const x of [40,50,60,70,80,89,96]) {
+    box(0.65, 1.45, 0.65, C.woodDark, x, 0.75, 25.7);
+    box(0.65, 1.45, 0.65, C.woodDark, x, 0.75, 28.3);
   }
 
-  // Pier house sits at the shore-side entrance to the pier.
+  // Small pier house at the shore-side pier entrance, as in the reference.
   whiteBuilding({
-    x:67, z:26.0, w:8.5, d:6.2, bodyH:4.4, baseY:1.5,
+    x:47, z:23.0, w:8.5, d:6.2, bodyH:4.4, baseY:1.5,
     roof:'gable', roofH:2.2, ridgeAlongX:true,
     bodyColor:C.wallBlue, roofColor:C.roofSlate,
     annex:{ dx:3.8, dz:1.8, w:2.6, d:2.8, h:2.0, roof:false }
   });
 
-  // Lighthouse access grows directly from the main plain and slopes down to the small islet.
+  // Independent lighthouse route: it grows out of the middle plain,
+  // separate from the wooden boardwalk.
   ribbon3D([
-    [30, MAIN_Y + 0.55, 34],
-    [39, MAIN_Y + 0.20, 42],
-    [48, 8.6, 51],
+    [18, MAIN_Y + 0.56, 31],
+    [27, MAIN_Y + 0.20, 38],
+    [38, 8.7, 47],
+    [50, 6.2, 56],
     [58, LIGHTHOUSE_Y + 1.0, 62]
-  ], 3.8, C.road, 36);
-  landing(30, 34, 6.0, 5.0, MAIN_Y + 0.56);
+  ], 4.0, C.road, 40);
+  landing(18, 31, 7.0, 5.0, MAIN_Y + 0.57);
   ribbon([[58,62],[63,65],[68,68],[70,70]], 3.5, LIGHTHOUSE_Y + 1.05, C.road, 18);
   ringRoad(6.0, 8.2, LIGHTHOUSE_Y + 1.04, 70, 70);
 
@@ -759,14 +779,14 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   signPost(-34, MAIN_Y + 0.55, -11.5, 0.08);
   signPost(10, MAIN_Y + 0.55, 20.5, -0.35);
 
-  // Main cliff edge: salt-tolerant greenery above, seating on the attached boardwalk.
+  // Main cliff edge: vegetation on the plain, seating on the rebuilt boardwalk.
   for (const [x,z,s] of [
-    [-52,28,0.7],[-38,31,0.65],[-21,34,0.65],[-3,35,0.65],[20,32,0.7],[31,28,0.65]
+    [-52,24,0.7],[-38,28,0.65],[-22,31,0.65],[-5,32,0.65],[18,29,0.7],[28,24,0.65]
   ]) shrub(x, MAIN_Y + 0.55, z, s, C.foliageDark);
 
-  bench(-28, BOARDWALK_Y, 34.5, 0.15);
-  bench(4, BOARDWALK_Y, 36.5, -0.1);
-  bench(27, BOARDWALK_Y, 31.5, -0.35);
+  bench(-28, BOARDWALK_Y, 32.5, 0.15);
+  bench(2, BOARDWALK_Y, 32.5, -0.1);
+  bench(27, BOARDWALK_Y, 26.0, -0.35);
 
   // Beach edge and tide pools: rocks plus two soft foam bands.
   for (const [x,z,s] of [
@@ -810,16 +830,22 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   bench(78, LIGHTHOUSE_Y + 1.0, 70, Math.PI / 2);
   signPost(60, LIGHTHOUSE_Y + 1.0, 62, 0.35);
 
-  // Railings belong to the main-layer cliff boardwalk.
-  for (const [x,z] of [[-45,33],[-26,36],[-7,38],[13,37],[30,32],[38,27],[43,20],[47,10],[50,0],[54,-9]]) {
+  // Railings follow only the rebuilt front and beach-side boardwalks.
+  for (const [x,z] of [
+    [-51,28],[-38,31],[-24,33],[-10,34],[5,32],[19,29],[29,25],
+    [33,20],[35,14],[36.5,7],[37,0],[38.5,-7]
+  ]) {
     box(0.18, 1.25, 0.18, C.fence, x, BOARDWALK_Y + 0.65, z);
   }
-  segmentBeam(-45,33,-26,36,0.18,0.18,BOARDWALK_Y + 1.2,C.fence);
-  segmentBeam(-26,36,-7,38,0.18,0.18,BOARDWALK_Y + 1.2,C.fence);
-  segmentBeam(-7,38,13,37,0.18,0.18,BOARDWALK_Y + 1.2,C.fence);
-  segmentBeam(33,31,42,22,0.18,0.18,BOARDWALK_Y + 1.2,C.fence);
-  segmentBeam(42,22,49,2,0.18,0.18,BOARDWALK_Y + 1.2,C.fence);
-  segmentBeam(49,2,55,-12,0.18,0.18,BOARDWALK_Y + 1.2,C.fence);
+  segmentBeam(-51,28,-38,31,0.18,0.18,BOARDWALK_Y + 1.2,C.fence);
+  segmentBeam(-38,31,-24,33,0.18,0.18,BOARDWALK_Y + 1.2,C.fence);
+  segmentBeam(-24,33,-10,34,0.18,0.18,BOARDWALK_Y + 1.2,C.fence);
+  segmentBeam(-10,34,5,32,0.18,0.18,BOARDWALK_Y + 1.2,C.fence);
+  segmentBeam(5,32,19,29,0.18,0.18,BOARDWALK_Y + 1.2,C.fence);
+  segmentBeam(19,29,30,24,0.18,0.18,BOARDWALK_Y + 1.2,C.fence);
+  segmentBeam(30,24,35,15,0.18,0.18,BOARDWALK_Y + 1.2,C.fence);
+  segmentBeam(35,15,37,0,0.18,0.18,BOARDWALK_Y + 1.2,C.fence);
+  segmentBeam(37,0,39,-8,0.18,0.18,BOARDWALK_Y + 1.2,C.fence);
 
   // ------------------------------------------------------------
   // Camera controls
