@@ -1,9 +1,9 @@
-export function createIsland3D(THREE, OrbitControls, app) {
+export function createVoxelIslandV1(THREE, OrbitControls, app) {
   app.innerHTML = '';
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xbfe8f2);
-  scene.fog = new THREE.Fog(0xbfe8f2, 260, 980);
+  scene.fog = new THREE.Fog(0xbfe8f2, 260, 950);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -30,42 +30,43 @@ export function createIsland3D(THREE, OrbitControls, app) {
   controls.zoomToCursor = true;
   controls.minPolarAngle = 0;
   controls.maxPolarAngle = THREE.MathUtils.degToRad(89);
-  controls.minDistance = 35;
-  controls.maxDistance = 460;
-  controls.target.set(0, 9, 0);
+  controls.minDistance = 30;
+  controls.maxDistance = 430;
   controls.touches.ONE = THREE.TOUCH.ROTATE;
   controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+  controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+  controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
 
-  const hemi = new THREE.HemisphereLight(0xfffdf7, 0x64717c, 2.1);
-  scene.add(hemi);
+  scene.add(new THREE.HemisphereLight(0xfffdf7, 0x63717c, 2.15));
 
-  const sun = new THREE.DirectionalLight(0xffefd8, 3.0);
-  sun.position.set(-95, 135, -75);
+  const sun = new THREE.DirectionalLight(0xffefd8, 3.1);
+  sun.position.set(-100, 145, -80);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -170;
-  sun.shadow.camera.right = 170;
-  sun.shadow.camera.top = 170;
-  sun.shadow.camera.bottom = -170;
+  sun.shadow.camera.left = -180;
+  sun.shadow.camera.right = 180;
+  sun.shadow.camera.top = 180;
+  sun.shadow.camera.bottom = -180;
   sun.shadow.camera.near = 1;
-  sun.shadow.camera.far = 420;
+  sun.shadow.camera.far = 460;
   sun.shadow.bias = -0.00025;
   scene.add(sun);
 
-  const COLORS = {
-    ocean: new THREE.Color(0x49b9dc),
-    oceanDeep: new THREE.Color(0x2f9ec8),
-    grass: new THREE.Color(0x96c978),
-    highGrass: new THREE.Color(0xa9d984),
-    cliff: new THREE.Color(0x76808d),
-    cliffLight: new THREE.Color(0x8d97a3),
-    sand: new THREE.Color(0xf2d59d)
+  const C = {
+    ocean: 0x48b9dd,
+    oceanDeep: 0x2f9dc7,
+    grass: 0x91c873,
+    highGrass: 0xa7d681,
+    rock: 0x77818e,
+    rockLight: 0x8d97a4,
+    sand: 0xf1d39a,
+    sandDeep: 0xd8b77f
   };
 
   const deepWater = new THREE.Mesh(
     new THREE.PlaneGeometry(2600, 2600),
     new THREE.MeshStandardMaterial({
-      color: COLORS.oceanDeep,
+      color: C.oceanDeep,
       roughness: 1,
       metalness: 0
     })
@@ -77,8 +78,8 @@ export function createIsland3D(THREE, OrbitControls, app) {
   const water = new THREE.Mesh(
     new THREE.PlaneGeometry(2600, 2600),
     new THREE.MeshStandardMaterial({
-      color: COLORS.ocean,
-      roughness: 0.86,
+      color: C.ocean,
+      roughness: 0.88,
       metalness: 0
     })
   );
@@ -87,202 +88,222 @@ export function createIsland3D(THREE, OrbitControls, app) {
   water.receiveShadow = true;
   scene.add(water);
 
-  // ------------------------------------------------------------------
-  // Island3D v1
+  // ------------------------------------------------------------
+  // Voxel Island v1
+  // ------------------------------------------------------------
+  // One data-driven voxel island:
+  // - rear highland
+  // - broad middle plain
+  // - front/side cliffs
+  // - right-side stepped beach bay
   //
-  // One continuous island mesh.
-  // No stacked platforms, no separate "middle/upper slabs".
-  //
-  // Coordinate convention:
-  //   -Z = rear / station side
-  //   +Z = front / open sea
-  //   +X = beach side
-  //
-  // The right-side beach is part of this same footprint.
-  // ------------------------------------------------------------------
+  // No buildings, roads, boardwalks or lighthouse yet.
+  // ------------------------------------------------------------
 
-  const coastline = [
-    [-68,-48],[-56,-55],[-39,-59],[-20,-61],[1,-60],[21,-56],
-    [37,-50],[48,-42],[54,-33],[54,-25],[50,-18],[44,-13],
-    [41,-9],[45,-5],[53,0],[60,7],[64,15],[65,23],
-    [62,31],[56,38],[47,43],[34,47],[18,49],[-1,49],
-    [-20,46],[-38,41],[-52,34],[-62,25],[-68,14],[-71,1],
-    [-72,-14],[-71,-30],[-70,-41]
-  ];
+  const CELL = 3.0;
+  const LEVEL_H = 2.4;
+  const MIN_X = -72;
+  const MAX_X = 69;
+  const MIN_Z = -60;
+  const MAX_Z = 51;
 
-  const MIN_X = -76;
-  const MAX_X = 70;
-  const MIN_Z = -65;
-  const MAX_Z = 54;
-  const STEP = 2.0;
+  const cols = Math.floor((MAX_X - MIN_X) / CELL) + 1;
+  const rows = Math.floor((MAX_Z - MIN_Z) / CELL) + 1;
 
-  const MAIN_H = 10.8;
-  const HIGH_H = 22.5;
-  const BEACH_H = 1.15;
-
-  function smoothstep(a, b, value) {
-    const t = THREE.MathUtils.clamp((value - a) / (b - a), 0, 1);
-    return t * t * (3 - 2 * t);
+  function edgeNoise(x, z) {
+    return (
+      Math.sin(x * 0.11 + z * 0.037) * 0.045 +
+      Math.sin(z * 0.13 - x * 0.031) * 0.035
+    );
   }
 
-  function rangeMask(value, min, max, feather) {
-    return smoothstep(min - feather, min + feather, value) *
-      (1 - smoothstep(max - feather, max + feather, value));
+  function islandMask(x, z) {
+    // Slightly asymmetric main footprint.
+    const nx = (x + 5) / 68;
+    const nz = (z + 4) / 56;
+    let d = nx * nx + nz * nz;
+
+    // Broaden the rear-left shoulder.
+    d -= Math.max(0, (-z - 24) / 80) * 0.10;
+    d -= Math.max(0, (-x - 24) / 90) * 0.04;
+
+    // Trim the far right so the beach bay feels carved from the island.
+    d += Math.max(0, (x - 46) / 28) * 0.13;
+
+    return d < 1.0 + edgeNoise(x, z);
   }
 
-  function pointInPolygon(x, z, poly) {
-    let inside = false;
-    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-      const xi = poly[i][0], zi = poly[i][1];
-      const xj = poly[j][0], zj = poly[j][1];
-      const intersects =
-        ((zi > z) !== (zj > z)) &&
-        (x < ((xj - xi) * (z - zi)) / ((zj - zi) || 1e-9) + xi);
-      if (intersects) inside = !inside;
+  function beachBand(x, z) {
+    const bz = (z - 10) / 26;
+    const bx = (x - 48) / 23;
+    return bx * bx + bz * bz;
+  }
+
+  function levelAt(x, z) {
+    if (!islandMask(x, z)) return 0;
+
+    // Main plain baseline.
+    let level = 4;
+
+    // Rear highland, still voxel-stepped rather than a second slab.
+    if (z <= -39 && x > -58 && x < 34) level = 8;
+    else if (z <= -34 && x > -62 && x < 38) level = 7;
+    else if (z <= -29 && x > -64 && x < 41) level = 6;
+    else if (z <= -24 && x > -66 && x < 43) level = 5;
+
+    // Small irregularity along the front/left coast so it does not read as a perfect wall.
+    const nx = (x + 5) / 68;
+    const nz = (z + 4) / 56;
+    const radial = nx * nx + nz * nz;
+    if (radial > 0.89 && z > 20 && x < 30) {
+      level = Math.min(level, 3);
     }
-    return inside;
+    if (radial > 0.96 && z > 26 && x < 24) {
+      level = Math.min(level, 2);
+    }
+
+    // Right-side beach bay:
+    // main plain -> cliff steps -> sand shelf -> sea.
+    const bay = beachBand(x, z);
+    if (bay < 1.18 && x > 30) {
+      if (x >= 48) level = Math.min(level, 1);
+      else if (x >= 42) level = Math.min(level, 2);
+      else if (x >= 36) level = Math.min(level, 3);
+    }
+
+    // A little extra sand tongue toward the lower-right.
+    if (x > 43 && z > 24 && z < 36) {
+      level = Math.min(level, 1);
+    }
+
+    return Math.max(0, Math.round(level));
   }
 
-  function heightAt(x, z) {
-    // Large central/main plain.
-    let h = MAIN_H;
-
-    // Rear highland is part of the SAME mesh.
-    // It becomes flat at the rear, with a steep transition into the main plain.
-    const rear = 1 - smoothstep(-29, -18, z);
-    const leftTaper = smoothstep(-70, -58, x);
-    const rightTaper = 1 - smoothstep(35, 49, x);
-    const highland = rear * leftTaper * rightTaper;
-    h = THREE.MathUtils.lerp(h, HIGH_H, highland);
-
-    // Right-side beach bay, also part of the SAME mesh.
-    // Main plain remains high inland, then drops sharply toward the beach.
-    const beachZ = rangeMask(z, -11, 33, 6);
-    const beachX = smoothstep(34, 43, x);
-    const beach = beachX * beachZ;
-    h = THREE.MathUtils.lerp(h, BEACH_H, beach);
-
-    // Slightly soften the extreme shoreline so the island does not look cut by a knife.
-    const frontSoft = smoothstep(43, 49, z);
-    h -= frontSoft * 0.6;
-
-    return h;
+  function topType(x, z, level) {
+    if (level <= 0) return 'none';
+    const bay = beachBand(x, z);
+    if ((level <= 2 && bay < 1.35 && x > 34) || (x > 43 && z > 22)) {
+      return 'sand';
+    }
+    if (level >= 6) return 'highGrass';
+    return 'grass';
   }
 
-  function colorAt(x, z) {
-    const h = heightAt(x, z);
-    const eps = 0.65;
-    const dx = (heightAt(x + eps, z) - heightAt(x - eps, z)) / (eps * 2);
-    const dz = (heightAt(x, z + eps) - heightAt(x, z - eps)) / (eps * 2);
-    const slope = Math.hypot(dx, dz);
+  const voxelData = [];
+  for (let ix = 0; ix < cols; ix++) {
+    const x = MIN_X + ix * CELL;
+    for (let iz = 0; iz < rows; iz++) {
+      const z = MIN_Z + iz * CELL;
+      const level = levelAt(x, z);
+      if (level <= 0) continue;
 
-    if (h < 3.0) return COLORS.sand;
-    if (slope > 0.78) return COLORS.cliff;
-    if (h > 17.5) return COLORS.highGrass;
-    return COLORS.grass;
-  }
-
-  const positions = [];
-  const colors = [];
-
-  function pushVertex(x, y, z, color) {
-    positions.push(x, y, z);
-    colors.push(color.r, color.g, color.b);
-  }
-
-  function pushTopTriangle(ax, az, bx, bz, cx, cz) {
-    const mx = (ax + bx + cx) / 3;
-    const mz = (az + bz + cz) / 3;
-    if (!pointInPolygon(mx, mz, coastline)) return;
-
-    const ah = heightAt(ax, az);
-    const bh = heightAt(bx, bz);
-    const ch = heightAt(cx, cz);
-
-    pushVertex(ax, ah, az, colorAt(ax, az));
-    pushVertex(bx, bh, bz, colorAt(bx, bz));
-    pushVertex(cx, ch, cz, colorAt(cx, cz));
-  }
-
-  // Terrain surface grid.
-  for (let x = MIN_X; x < MAX_X; x += STEP) {
-    for (let z = MIN_Z; z < MAX_Z; z += STEP) {
-      pushTopTriangle(
-        x, z,
-        x + STEP, z,
-        x + STEP, z + STEP
-      );
-      pushTopTriangle(
-        x, z,
-        x + STEP, z + STEP,
-        x, z + STEP
-      );
+      voxelData.push({
+        x,
+        z,
+        level,
+        top: topType(x, z, level)
+      });
     }
   }
 
-  // Coastline skirt, part of the same BufferGeometry.
-  // This turns the height-field surface into a solid-looking island volume.
-  const skirtBottom = 0.15;
-  const coastSamples = [];
+  let rockCount = 0;
+  let grassCount = 0;
+  let highGrassCount = 0;
+  let sandCount = 0;
 
-  for (let i = 0; i < coastline.length; i++) {
-    const a = coastline[i];
-    const b = coastline[(i + 1) % coastline.length];
-    const dx = b[0] - a[0];
-    const dz = b[1] - a[1];
-    const len = Math.hypot(dx, dz);
-    const count = Math.max(1, Math.ceil(len / 2.4));
-
-    for (let s = 0; s < count; s++) {
-      const t = s / count;
-      coastSamples.push([
-        THREE.MathUtils.lerp(a[0], b[0], t),
-        THREE.MathUtils.lerp(a[1], b[1], t)
-      ]);
+  for (const cell of voxelData) {
+    if (cell.top === 'sand') {
+      sandCount += cell.level;
+    } else {
+      rockCount += Math.max(0, cell.level - 1);
+      if (cell.top === 'highGrass') highGrassCount += 1;
+      else grassCount += 1;
     }
   }
 
-  const cliffSideColor = COLORS.cliffLight;
-  for (let i = 0; i < coastSamples.length; i++) {
-    const a = coastSamples[i];
-    const b = coastSamples[(i + 1) % coastSamples.length];
-    const ay = heightAt(a[0], a[1]);
-    const by = heightAt(b[0], b[1]);
+  const cube = new THREE.BoxGeometry(CELL, LEVEL_H, CELL);
 
-    pushVertex(a[0], ay, a[1], cliffSideColor);
-    pushVertex(a[0], skirtBottom, a[1], cliffSideColor);
-    pushVertex(b[0], skirtBottom, b[1], cliffSideColor);
-
-    pushVertex(a[0], ay, a[1], cliffSideColor);
-    pushVertex(b[0], skirtBottom, b[1], cliffSideColor);
-    pushVertex(b[0], by, b[1], cliffSideColor);
-  }
-
-  const islandGeometry = new THREE.BufferGeometry();
-  islandGeometry.setAttribute(
-    'position',
-    new THREE.Float32BufferAttribute(positions, 3)
-  );
-  islandGeometry.setAttribute(
-    'color',
-    new THREE.Float32BufferAttribute(colors, 3)
-  );
-  islandGeometry.computeVertexNormals();
-  islandGeometry.computeBoundingSphere();
-
-  const islandMaterial = new THREE.MeshStandardMaterial({
-    vertexColors: true,
-    roughness: 0.95,
+  const rockMat = new THREE.MeshStandardMaterial({
+    color: C.rock,
+    roughness: 1,
     metalness: 0,
-    side: THREE.DoubleSide
+    flatShading: true
+  });
+  const grassMat = new THREE.MeshStandardMaterial({
+    color: C.grass,
+    roughness: 1,
+    metalness: 0,
+    flatShading: true
+  });
+  const highGrassMat = new THREE.MeshStandardMaterial({
+    color: C.highGrass,
+    roughness: 1,
+    metalness: 0,
+    flatShading: true
+  });
+  const sandMat = new THREE.MeshStandardMaterial({
+    color: C.sand,
+    roughness: 1,
+    metalness: 0,
+    flatShading: true
   });
 
-  const island = new THREE.Mesh(islandGeometry, islandMaterial);
-  island.castShadow = true;
-  island.receiveShadow = true;
-  scene.add(island);
+  const rockMesh = new THREE.InstancedMesh(cube, rockMat, Math.max(rockCount, 1));
+  const grassMesh = new THREE.InstancedMesh(cube, grassMat, Math.max(grassCount, 1));
+  const highGrassMesh = new THREE.InstancedMesh(cube, highGrassMat, Math.max(highGrassCount, 1));
+  const sandMesh = new THREE.InstancedMesh(cube, sandMat, Math.max(sandCount, 1));
 
-  // Simple UI only for inspecting the island itself.
+  for (const mesh of [rockMesh, grassMesh, highGrassMesh, sandMesh]) {
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+  }
+
+  const dummy = new THREE.Object3D();
+  let rockIndex = 0;
+  let grassIndex = 0;
+  let highGrassIndex = 0;
+  let sandIndex = 0;
+
+  function setInstance(mesh, index, x, layer, z) {
+    dummy.position.set(x, LEVEL_H * (layer - 0.5), z);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(index, dummy.matrix);
+  }
+
+  for (const cell of voxelData) {
+    if (cell.top === 'sand') {
+      for (let layer = 1; layer <= cell.level; layer++) {
+        setInstance(sandMesh, sandIndex++, cell.x, layer, cell.z);
+      }
+      continue;
+    }
+
+    for (let layer = 1; layer < cell.level; layer++) {
+      setInstance(rockMesh, rockIndex++, cell.x, layer, cell.z);
+    }
+
+    if (cell.top === 'highGrass') {
+      setInstance(highGrassMesh, highGrassIndex++, cell.x, cell.level, cell.z);
+    } else {
+      setInstance(grassMesh, grassIndex++, cell.x, cell.level, cell.z);
+    }
+  }
+
+  rockMesh.count = rockIndex;
+  grassMesh.count = grassIndex;
+  highGrassMesh.count = highGrassIndex;
+  sandMesh.count = sandIndex;
+
+  rockMesh.instanceMatrix.needsUpdate = true;
+  grassMesh.instanceMatrix.needsUpdate = true;
+  highGrassMesh.instanceMatrix.needsUpdate = true;
+  sandMesh.instanceMatrix.needsUpdate = true;
+
+  scene.add(rockMesh, grassMesh, highGrassMesh, sandMesh);
+
+  // Inspection UI.
   const ui = document.createElement('div');
   ui.style.cssText = [
     'position:fixed',
@@ -313,9 +334,9 @@ export function createIsland3D(THREE, OrbitControls, app) {
 
   function setDefaultView() {
     const aspect = window.innerWidth / window.innerHeight;
-    const distance = aspect < 0.62 ? 285 : aspect < 0.85 ? 245 : 215;
-    const dir = new THREE.Vector3(0.62, 0.55, 0.72).normalize();
-    controls.target.set(0, 9, 0);
+    const distance = aspect < 0.62 ? 290 : aspect < 0.85 ? 250 : 220;
+    const dir = new THREE.Vector3(0.62, 0.58, 0.73).normalize();
+    controls.target.set(0, 10, 0);
     camera.position.copy(controls.target).addScaledVector(dir, distance);
     controls.update();
   }
@@ -323,22 +344,15 @@ export function createIsland3D(THREE, OrbitControls, app) {
   addButton('默认', setDefaultView);
 
   addButton('俯视', () => {
-    controls.target.set(0, 8, 0);
-    camera.position.set(0.2, 190, 0.2);
+    controls.target.set(0, 9, 0);
+    camera.position.set(0.15, 200, 0.15);
     controls.update();
   });
 
   addButton('侧视', () => {
     controls.target.set(0, 9, 0);
-    camera.position.set(155, 18, 12);
+    camera.position.set(170, 20, 8);
     controls.update();
-  });
-
-  let wireframe = false;
-  const wireButton = addButton('网格', () => {
-    wireframe = !wireframe;
-    islandMaterial.wireframe = wireframe;
-    wireButton.textContent = wireframe ? '实体' : '网格';
   });
 
   let locked = false;
@@ -380,7 +394,12 @@ export function createIsland3D(THREE, OrbitControls, app) {
     camera,
     renderer,
     controls,
-    island,
-    islandGeometry
+    voxelData,
+    meshes: {
+      rockMesh,
+      grassMesh,
+      highGrassMesh,
+      sandMesh
+    }
   };
 }
