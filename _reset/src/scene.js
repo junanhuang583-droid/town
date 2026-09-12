@@ -468,11 +468,14 @@ export function createSeasideBlockout(THREE, OrbitControls, app) {
   topSlab(baseIsland, LOW_Y + 0.5, 0.5, C.lowGrass);
 
   // LEVEL 2: broad middle terrace. It also supports the entire upper terrace.
+  // The right wing stays broad behind the plaza and reaches the beach-side cliff,
+  // matching the blueprint instead of collapsing into a deep inward notch.
   const midPlateau = [
     [-68,-52],[-49,-56],[-27,-57],[-5,-56],[18,-53],[37,-47],
     [47,-40],[49,-32],[46,-23],[39,-18],[30,-14],[25,-8],
-    [30,-2],[34,5],[33,11],[28,17],[20,22],[10,26],
-    [-4,29],[-20,30],[-37,28],[-52,23],[-61,16],[-65,6],
+    [31,-10],[37,-7],[42,-2],[45,5],[46,12],[44,18],
+    [40,23],[35,26],[29,28],[22,30],[12,30],[-4,29],
+    [-20,30],[-37,28],[-52,23],[-61,16],[-65,6],
     [-66,-6],[-66,-20],[-67,-36]
   ];
   prism(midPlateau, LOW_Y, MID_Y, C.cliff);
