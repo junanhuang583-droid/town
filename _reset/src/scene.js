@@ -314,9 +314,9 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
   // ------------------------------------------------------------
   // Minimal walking pet test
   // ------------------------------------------------------------
-  // This is intentionally NOT the real pet system yet.
-  // It only tests character scale + terrain traversal on the voxel island.
-  const PET_SPEED = 2.5;
+  // v0.2: real leg swing + step-aware movement.
+  // Still intentionally tiny: only walking, no needs/interactions/AI.
+  const PET_SPEED = 2.35;
   const PET_MAX_STEP = 1;
 
   const pet = new THREE.Group();
@@ -344,17 +344,17 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
     new THREE.SphereGeometry(0.46, 16, 12),
     petBodyMat
   );
-  body.scale.set(0.86, 1.12, 0.76);
-  body.position.y = 0.55;
+  body.scale.set(0.86, 1.08, 0.76);
+  body.position.y = 0.91;
   body.castShadow = true;
   petVisual.add(body);
 
   const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.38, 16, 12),
+    new THREE.SphereGeometry(0.36, 16, 12),
     petBodyMat
   );
-  head.position.set(0, 1.18, 0);
-  head.scale.set(1.0, 0.92, 0.92);
+  head.position.set(0, 1.48, 0);
+  head.scale.set(1.0, 0.94, 0.94);
   head.castShadow = true;
   petVisual.add(head);
 
@@ -362,25 +362,44 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
     new THREE.SphereGeometry(0.27, 14, 10),
     petLightMat
   );
-  belly.position.set(0, 0.58, 0.31);
+  belly.position.set(0, 0.91, 0.30);
   belly.scale.set(0.78, 1.0, 0.35);
   petVisual.add(belly);
 
   const eyeGeometry = new THREE.SphereGeometry(0.045, 8, 6);
   for (const x of [-0.12, 0.12]) {
     const eye = new THREE.Mesh(eyeGeometry, petDarkMat);
-    eye.position.set(x, 1.22, 0.34);
+    eye.position.set(x, 1.52, 0.32);
     petVisual.add(eye);
   }
 
-  const footGeometry = new THREE.SphereGeometry(0.14, 10, 8);
-  for (const x of [-0.22, 0.22]) {
-    const foot = new THREE.Mesh(footGeometry, petDarkMat);
-    foot.position.set(x, 0.12, 0.02);
-    foot.scale.set(1.0, 0.55, 1.25);
+  function makeLeg(x) {
+    const leg = new THREE.Group();
+    leg.position.set(x, 0.52, 0);
+
+    const shin = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.07, 0.085, 0.42, 10),
+      petBodyMat
+    );
+    shin.position.y = -0.21;
+    shin.castShadow = true;
+    leg.add(shin);
+
+    const foot = new THREE.Mesh(
+      new THREE.SphereGeometry(0.14, 10, 8),
+      petDarkMat
+    );
+    foot.position.set(0, -0.43, 0.065);
+    foot.scale.set(1.0, 0.55, 1.35);
     foot.castShadow = true;
-    petVisual.add(foot);
+    leg.add(foot);
+
+    petVisual.add(leg);
+    return leg;
   }
+
+  const leftLeg = makeLeg(-0.20);
+  const rightLeg = makeLeg(0.20);
 
   pet.add(petVisual);
   scene.add(pet);
@@ -389,12 +408,16 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
   let petPath = [];
   let petPathIndex = 0;
   let petIdleTimer = 0;
-  let petWalkTime = 0;
+  let petWalkPhase = 0;
   let petNeedsRespawn = true;
+  let petSegment = null;
 
   function petGroundY(gx, gz) {
     const column = columns.get(keyOf(gx, gz));
     if (!column) return null;
+
+    // Surface cap top is h * LEVEL_H + 0.16.
+    // A tiny clearance keeps the feet above the cap without visibly floating.
     return column.h * LEVEL_H + 0.18;
   }
 
@@ -527,6 +550,13 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
+  function resetPetPose() {
+    leftLeg.rotation.x = 0;
+    rightLeg.rotation.x = 0;
+    petVisual.position.y = 0;
+    petVisual.rotation.z = 0;
+  }
+
   function respawnPet() {
     const spawn = choosePetSpawn();
     if (!spawn) {
@@ -542,8 +572,10 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
     pet.position.set(spawn.gx * CELL, y, spawn.gz * CELL);
     petPath = [];
     petPathIndex = 0;
+    petSegment = null;
     petIdleTimer = 0.25;
     petNeedsRespawn = false;
+    resetPetPose();
   }
 
   function choosePetDestination() {
@@ -568,6 +600,7 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
       if (path && path.length > 3) {
         petPath = path;
         petPathIndex = 1;
+        petSegment = null;
         return true;
       }
     }
@@ -575,9 +608,94 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
     return false;
   }
 
+  function beginPetSegment(node) {
+    if (!petGrid) return false;
+
+    const startY = petGroundY(petGrid.gx, petGrid.gz);
+    const endY = petGroundY(node.gx, node.gz);
+    if (startY == null || endY == null) return false;
+
+    const startColumn = columns.get(keyOf(petGrid.gx, petGrid.gz));
+    const endColumn = columns.get(keyOf(node.gx, node.gz));
+    if (!startColumn || !endColumn) return false;
+
+    const sx = petGrid.gx * CELL;
+    const sz = petGrid.gz * CELL;
+    const ex = node.gx * CELL;
+    const ez = node.gz * CELL;
+    const dx = ex - sx;
+    const dz = ez - sz;
+    const distance = Math.hypot(dx, dz);
+
+    petSegment = {
+      node,
+      t: 0,
+      duration: Math.max(0.28, distance / PET_SPEED),
+      start: new THREE.Vector3(sx, startY, sz),
+      end: new THREE.Vector3(ex, endY, ez),
+      levelDelta: endColumn.h - startColumn.h
+    };
+
+    if (distance > 0.0001) {
+      pet.rotation.y = Math.atan2(dx / distance, dz / distance);
+    }
+
+    return true;
+  }
+
+  function petSegmentY(segment, t) {
+    const startY = segment.start.y;
+    const endY = segment.end.y;
+
+    if (segment.levelDelta > 0) {
+      // Rise BEFORE crossing the voxel edge at t=0.5.
+      // This is what stops the feet/body from cutting through the vertical rock wall.
+      const rise = smoothstep(0.16, 0.46, t);
+      const lift = Math.sin(Math.PI * t) * 0.11;
+      return THREE.MathUtils.lerp(startY, endY, rise) + lift;
+    }
+
+    if (segment.levelDelta < 0) {
+      // Stay on the upper floor until the character has crossed the edge,
+      // then lower onto the next cell.
+      const fall = smoothstep(0.54, 0.84, t);
+      const lift = Math.sin(Math.PI * t) * 0.07;
+      return THREE.MathUtils.lerp(startY, endY, fall) + lift;
+    }
+
+    return startY;
+  }
+
+  function animatePetLegs(dt, segmentT, levelDelta) {
+    petWalkPhase += dt * 9.2;
+
+    let swing = Math.sin(petWalkPhase) * 0.55;
+
+    // On a step, exaggerate the leading-leg motion slightly.
+    if (levelDelta !== 0) {
+      const stepPulse = Math.sin(Math.PI * segmentT);
+      swing *= 1 + stepPulse * 0.35;
+    }
+
+    leftLeg.rotation.x = swing;
+    rightLeg.rotation.x = -swing;
+
+    petVisual.position.y = Math.abs(Math.sin(petWalkPhase * 2)) * 0.025;
+    petVisual.rotation.z = Math.sin(petWalkPhase) * 0.016;
+  }
+
+  function settlePetPose(dt) {
+    const k = Math.min(1, dt * 12);
+    leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, k);
+    rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, k);
+    petVisual.position.y = THREE.MathUtils.lerp(petVisual.position.y, 0, k);
+    petVisual.rotation.z = THREE.MathUtils.lerp(petVisual.rotation.z, 0, k);
+  }
+
   function invalidatePetRoute() {
     petPath = [];
     petPathIndex = 0;
+    petSegment = null;
 
     if (!petGrid || !columns.has(keyOf(petGrid.gx, petGrid.gz))) {
       petNeedsRespawn = true;
@@ -585,23 +703,32 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
     }
 
     const ground = petGroundY(petGrid.gx, petGrid.gz);
-    if (ground != null) pet.position.y = ground;
+    if (ground != null) {
+      pet.position.set(
+        petGrid.gx * CELL,
+        ground,
+        petGrid.gz * CELL
+      );
+    }
+
     petIdleTimer = 0.2;
+    resetPetPose();
   }
 
   function updatePet(dt) {
-    if (editMode) return;
+    if (editMode) {
+      settlePetPose(dt);
+      return;
+    }
 
     if (petNeedsRespawn || !petGrid) {
       respawnPet();
       return;
     }
 
-    petWalkTime += dt;
-
     if (petIdleTimer > 0) {
       petIdleTimer -= dt;
-      petVisual.position.y = Math.sin(petWalkTime * 2.4) * 0.018;
+      settlePetPose(dt);
       return;
     }
 
@@ -609,54 +736,39 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
       if (!choosePetDestination()) {
         petIdleTimer = 0.7;
       }
+      settlePetPose(dt);
       return;
     }
 
     const node = petPath[petPathIndex];
-    const targetGround = petGroundY(node.gx, node.gz);
 
-    if (targetGround == null) {
-      invalidatePetRoute();
-      return;
+    if (!petSegment) {
+      if (!beginPetSegment(node)) {
+        invalidatePetRoute();
+        return;
+      }
     }
 
-    const target = new THREE.Vector3(
-      node.gx * CELL,
-      targetGround,
-      node.gz * CELL
-    );
+    const segment = petSegment;
+    segment.t = Math.min(1, segment.t + dt / segment.duration);
 
-    const delta = target.clone().sub(pet.position);
-    const planarDistance = Math.hypot(delta.x, delta.z);
+    const t = segment.t;
+    pet.position.x = THREE.MathUtils.lerp(segment.start.x, segment.end.x, t);
+    pet.position.z = THREE.MathUtils.lerp(segment.start.z, segment.end.z, t);
+    pet.position.y = petSegmentY(segment, t);
 
-    if (planarDistance < 0.08) {
-      pet.position.copy(target);
+    animatePetLegs(dt, t, segment.levelDelta);
+
+    if (t >= 1) {
+      pet.position.copy(segment.end);
       petGrid = { gx: node.gx, gz: node.gz };
       petPathIndex += 1;
+      petSegment = null;
 
       if (petPathIndex >= petPath.length) {
         petIdleTimer = 0.25 + Math.random() * 0.35;
       }
-      return;
     }
-
-    const moveDistance = Math.min(PET_SPEED * dt, planarDistance);
-    const nx = delta.x / planarDistance;
-    const nz = delta.z / planarDistance;
-
-    pet.position.x += nx * moveDistance;
-    pet.position.z += nz * moveDistance;
-
-    const progress = moveDistance / Math.max(planarDistance, 0.0001);
-    pet.position.y = THREE.MathUtils.lerp(
-      pet.position.y,
-      target.y,
-      Math.min(1, progress * 1.8)
-    );
-
-    pet.rotation.y = Math.atan2(nx, nz);
-    petVisual.position.y = Math.abs(Math.sin(petWalkTime * 8.0)) * 0.055;
-    petVisual.rotation.z = Math.sin(petWalkTime * 8.0) * 0.025;
   }
 
   // ------------------------------------------------------------
