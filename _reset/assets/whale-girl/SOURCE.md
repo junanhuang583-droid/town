@@ -9,10 +9,14 @@ This directory vendors the DeepSeek Girl / whale-girl Codex pet sprite atlas for
 - Atlas: 1536 × 2288 WebP, 8 columns × 11 rows, 192 × 208 per frame
 - License declared by upstream: MIT
 
-Town v0.3 currently uses:
+Town Pet v0.4 uses:
 - row 0: idle animation
-- row 1: moving right
-- row 2: moving left
+- row 1: source moving-right row, re-timed as a Town walking cycle
+- row 2: source moving-left row, re-timed as a Town walking cycle
+- walking frame sequence: 0, 2, 4, 6 (contact/passing poses only)
+- gait phase is synchronized to world distance rather than restarting on direction changes
+
+No upstream artwork is overwritten. Town-specific animation logic lives only in this repository.
 
 All Town integration and adaptation code lives in this repository. The upstream repository is treated as read-only.
 
