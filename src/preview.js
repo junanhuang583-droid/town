@@ -1,3 +1,1 @@
-import { mountMap } from './mapView.js';
-
-mountMap(document.querySelector('#app'));
+import './main.js';

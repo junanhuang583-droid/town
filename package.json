@@ -1,13 +1,16 @@
 {
-  "name": "pixel-town-seaside",
+  "name": "town-voxel-world",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build"
   },
+  "dependencies": {
+    "three": "^0.180.0"
+  },
   "devDependencies": {
-    "vite": "^6.0.0"
+    "vite": "^7.1.0"
   }
 }
