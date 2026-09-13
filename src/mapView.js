@@ -1,11 +1,12 @@
 import { TILE, createPixelAssets } from './pixelAssets.js';
 import { buildTownMap } from './mapData.js';
+import { loadPunyWorldAssets } from './punyWorld.js';
 
-export function mountMap(app) {
+export async function mountMap(app) {
   app.innerHTML = '';
 
   const map = buildTownMap();
-  const assets = createPixelAssets();
+  const fallback = createPixelAssets();
 
   const WORLD_W = map.width * TILE;
   const WORLD_H = map.height * TILE;
@@ -17,7 +18,7 @@ export function mountMap(app) {
   canvas.className = 'pixel-map';
   canvas.width = WORLD_W;
   canvas.height = WORLD_H;
-  canvas.setAttribute('aria-label', 'Pixel Town v0.2 海滨小镇重构版');
+  canvas.setAttribute('aria-label', 'Pixel Town v0.2 Puny World integration');
   viewport.appendChild(canvas);
   app.appendChild(viewport);
 
@@ -25,7 +26,7 @@ export function mountMap(app) {
   hud.className = 'pixel-hud';
   hud.innerHTML =
     '<b>Pixel Town v0.2</b>' +
-    '<span>海滨小镇 · 16px Tile 重构版</span>';
+    '<span>Puny World 原始素材接入中…</span>';
   app.appendChild(hud);
 
   const controls = document.createElement('div');
@@ -38,6 +39,20 @@ export function mountMap(app) {
 
   const ctx = canvas.getContext('2d', { alpha: false });
   ctx.imageSmoothingEnabled = false;
+
+  let puny = null;
+
+  try {
+    puny = await loadPunyWorldAssets();
+    hud.innerHTML =
+      '<b>Pixel Town v0.2</b>' +
+      '<span>海滨小镇 · Puny World 原始素材验证版</span>';
+  } catch (error) {
+    console.error(error);
+    hud.innerHTML =
+      '<b>Pixel Town v0.2</b>' +
+      '<span>素材加载失败 · 使用旧占位资源</span>';
+  }
 
   function hash(x, y, seed = 0) {
     let n = (x * 374761393 + y * 668265263 + seed * 1442695041) >>> 0;
@@ -60,16 +75,8 @@ export function mountMap(app) {
   }
 
   function variant(list, x, y, seed = 0) {
-    const i = Math.floor(hash(x, y, seed) * list.length) % list.length;
-    return list[i];
-  }
-
-  function terrainSprite(type, x, y) {
-    if (type === 'grass') return variant(assets.terrain.grass, x, y, 1);
-    if (type === 'grassHigh') return variant(assets.terrain.grassHigh, x, y, 2);
-    if (type === 'grassLow') return variant(assets.terrain.grassLow, x, y, 3);
-    if (type === 'sand') return variant(assets.terrain.sand, x, y, 4);
-    return variant(assets.terrain.water, x, y, 5);
+    const index = Math.floor(hash(x, y, seed) * list.length) % list.length;
+    return list[index];
   }
 
   function sideMask(test) {
@@ -81,20 +88,70 @@ export function mountMap(app) {
     return mask;
   }
 
+  function distanceToLand(x, y, radius = 3) {
+    for (let r = 1; r <= radius; r++) {
+      for (let yy = y - r; yy <= y + r; yy++) {
+        for (let xx = x - r; xx <= x + r; xx++) {
+          if (Math.max(Math.abs(xx - x), Math.abs(yy - y)) !== r) continue;
+          if (terrainAt(xx, yy) !== 'water') return r;
+        }
+      }
+    }
+    return radius + 1;
+  }
+
+  function punyTerrainSprite(type, x, y) {
+    if (!puny) return null;
+
+    if (type === 'sand') {
+      return variant(puny.beach, x, y, 11);
+    }
+
+    if (
+      type === 'grass' ||
+      type === 'grassHigh' ||
+      type === 'grassLow'
+    ) {
+      return variant(puny.grass, x, y, type === 'grassHigh' ? 14 : 12);
+    }
+
+    if (type === 'water') {
+      const distance = distanceToLand(x, y, 3);
+      if (distance <= 1) return puny.water.shallow;
+      if (distance <= 3) return puny.water.medium;
+      return puny.water.deep;
+    }
+
+    return null;
+  }
+
+  function fallbackTerrainSprite(type, x, y) {
+    if (type === 'grass') return variant(fallback.terrain.grass, x, y, 1);
+    if (type === 'grassHigh') return variant(fallback.terrain.grassHigh, x, y, 2);
+    if (type === 'grassLow') return variant(fallback.terrain.grassLow, x, y, 3);
+    if (type === 'sand') return variant(fallback.terrain.sand, x, y, 4);
+    return variant(fallback.terrain.water, x, y, 5);
+  }
+
   function drawTerrain() {
     for (let y = 0; y < map.height; y++) {
       for (let x = 0; x < map.width; x++) {
         const type = terrainAt(x, y);
-        ctx.drawImage(terrainSprite(type, x, y), x * TILE, y * TILE);
+        const sprite =
+          punyTerrainSprite(type, x, y) ||
+          fallbackTerrainSprite(type, x, y);
+
+        ctx.drawImage(sprite, x * TILE, y * TILE);
       }
     }
   }
 
   function drawTerrainEdges() {
+    // Step 3 intentionally keeps only a light compatibility edge pass.
+    // The next Town-art pass will replace this with a Town-specific coast autotile.
     for (let y = 0; y < map.height; y++) {
       for (let x = 0; x < map.width; x++) {
         const type = terrainAt(x, y);
-
         if (type === 'water') continue;
 
         const waterMask = sideMask((dx, dy) =>
@@ -102,42 +159,13 @@ export function mountMap(app) {
         );
 
         if (waterMask) {
-          const foamSet = assets.terrain.foam[waterMask];
-          const foam = foamSet[Math.floor(hash(x, y, 12) * foamSet.length) % foamSet.length];
+          const foamSet = fallback.terrain.foam[waterMask];
+          const foam =
+            foamSet[Math.floor(hash(x, y, 42) * foamSet.length) % foamSet.length];
+
+          ctx.globalAlpha = 0.7;
           ctx.drawImage(foam, x * TILE, y * TILE);
-        }
-
-        if (type === 'sand') {
-          const edgeMask = sideMask((dx, dy) => {
-            const neighbor = terrainAt(x + dx, y + dy);
-            return neighbor !== 'sand' && neighbor !== 'water';
-          });
-
-          if (edgeMask) {
-            ctx.drawImage(assets.terrain.sandEdge[edgeMask], x * TILE, y * TILE);
-          }
-
-          continue;
-        }
-
-        const grassFamily =
-          type === 'grass' ||
-          type === 'grassHigh' ||
-          type === 'grassLow';
-
-        if (grassFamily) {
-          const edgeMask = sideMask((dx, dy) => {
-            const neighbor = terrainAt(x + dx, y + dy);
-            return (
-              neighbor !== type &&
-              neighbor !== 'water' &&
-              neighbor !== 'sand'
-            );
-          });
-
-          if (edgeMask) {
-            ctx.drawImage(assets.terrain.grassEdge[edgeMask], x * TILE, y * TILE);
-          }
+          ctx.globalAlpha = 1;
         }
       }
     }
@@ -150,12 +178,12 @@ export function mountMap(app) {
         if (!type) continue;
 
         if (type === 'rail') {
-          ctx.drawImage(assets.terrain.rail, x * TILE, y * TILE);
+          ctx.drawImage(fallback.terrain.rail, x * TILE, y * TILE);
           continue;
         }
 
         if (type === 'stairs') {
-          ctx.drawImage(assets.terrain.stairs, x * TILE, y * TILE);
+          ctx.drawImage(fallback.terrain.stairs, x * TILE, y * TILE);
           continue;
         }
 
@@ -163,7 +191,12 @@ export function mountMap(app) {
           pathAt(x + dx, y + dy) === type
         );
 
-        const group = assets.paths[type];
+        if (puny && type === 'dirt') {
+          ctx.drawImage(puny.dirtPaths[mask], x * TILE, y * TILE);
+          continue;
+        }
+
+        const group = fallback.paths[type];
         if (!group) continue;
 
         const options = group[mask];
@@ -177,8 +210,14 @@ export function mountMap(app) {
 
   function drawCliffs() {
     for (const item of map.cliffs) {
-      const cliff = assets.terrain.cliff[item.variant % assets.terrain.cliff.length];
-      ctx.drawImage(cliff, item.x * TILE, item.y * TILE);
+      if (puny) {
+        const cliff = puny.cliff[item.variant % puny.cliff.length];
+        ctx.drawImage(cliff, item.x * TILE, item.y * TILE);
+      } else {
+        const cliff =
+          fallback.terrain.cliff[item.variant % fallback.terrain.cliff.length];
+        ctx.drawImage(cliff, item.x * TILE, item.y * TILE);
+      }
     }
   }
 
@@ -192,11 +231,86 @@ export function mountMap(app) {
     ctx.drawImage(sprite, x, y, width, height);
   }
 
+  function punyBuildingFor(type) {
+    if (!puny) return null;
+
+    const mapping = {
+      station: ['largeA', 1.32],
+      homeRed: ['smallA', 1.28],
+      homeGreen: ['smallB', 1.28],
+      homeBlue: ['smallC', 1.28],
+      inn: ['largeB', 1.38],
+      sweets: ['smallD', 1.3],
+      general: ['smallA', 1.34],
+      cafe: ['largeC', 1.35],
+      seafood: ['largeA', 1.34],
+      rental: ['smallB', 1.25],
+      lighthouseHouse: ['smallC', 1.24]
+    };
+
+    const spec = mapping[type];
+    if (!spec) return null;
+
+    return {
+      sprite: puny.buildings[spec[0]],
+      scale: spec[1]
+    };
+  }
+
+  function punyDecorFor(item) {
+    if (!puny) return null;
+
+    if (item.type === 'tree') {
+      return {
+        sprite: variant(puny.trees, Math.floor(item.x), Math.floor(item.y), 61),
+        scale: 1.72
+      };
+    }
+
+    if (item.type === 'pine') {
+      return {
+        sprite: variant(puny.trees, Math.floor(item.x), Math.floor(item.y), 67),
+        scale: 1.55
+      };
+    }
+
+    const mapping = {
+      bush: ['bush', 1.15],
+      flowerPink: ['flowerA', 1],
+      flowerYellow: ['flowerB', 1],
+      flowerPurple: ['flowerC', 1],
+      rock: ['rock', 1],
+      sign: ['sign', 1],
+      crate: ['crate', 1]
+    };
+
+    const spec = mapping[item.type];
+    if (!spec) return null;
+
+    return {
+      sprite: puny.decor[spec[0]],
+      scale: spec[1]
+    };
+  }
+
   function drawWorldObjects() {
     const drawables = [];
 
     for (const item of map.buildings) {
-      const sprite = assets.buildings[item.type];
+      const punyBuilding = punyBuildingFor(item.type);
+
+      if (punyBuilding) {
+        drawables.push({
+          sprite: punyBuilding.sprite,
+          x: item.x,
+          y: item.y,
+          scale: punyBuilding.scale * (item.scale || 1),
+          order: 0
+        });
+        continue;
+      }
+
+      const sprite = fallback.buildings[item.type];
       if (!sprite) continue;
 
       drawables.push({
@@ -209,7 +323,20 @@ export function mountMap(app) {
     }
 
     for (const item of map.objects) {
-      const sprite = assets.decor[item.type];
+      const punyDecor = punyDecorFor(item);
+
+      if (punyDecor) {
+        drawables.push({
+          sprite: punyDecor.sprite,
+          x: item.x,
+          y: item.y,
+          scale: punyDecor.scale * (item.scale || 1),
+          order: 1
+        });
+        continue;
+      }
+
+      const sprite = fallback.decor[item.type];
       if (!sprite) continue;
 
       drawables.push({
