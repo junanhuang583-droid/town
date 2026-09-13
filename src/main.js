@@ -10,7 +10,7 @@ app.innerHTML = [
   '<div class="viewport" data-role="viewport"></div>',
   '<section class="panel panel-left">',
   '<strong>Town Voxel World v0.1</strong>',
-  '<span>海岸骨架验收版 · 无建筑</span>',
+  '<span>海岛基底重构 · 五视图参考 · 无建筑</span>',
   '<span data-role="status"></span>',
   '</section>',
   '<section class="toolbar" aria-label="terrain editor">',
@@ -25,15 +25,16 @@ app.innerHTML = [
   '<button data-surface="rock">岩</button>',
   '</div>',
   '<div class="tool-group">',
+  '<button data-action="reference-view">海湾视角</button>',
+  '<button data-action="top-view">俯视</button>',
+  '<button data-action="rear-view">背面视角</button>',
   '<button data-action="undo">撤销</button>',
   '<button data-action="redo">重做</button>',
-  '<button data-action="reference-view">参考视角</button>',
-  '<button data-action="top-view">俯视</button>',
   '</div>',
   '<div class="tool-group">',
   '<button data-action="export">导出 JSON</button>',
   '<button data-action="import">导入 JSON</button>',
-  '<button data-action="reset" class="danger">重置骨架</button>',
+  '<button data-action="reset" class="danger">重置基底</button>',
   '</div>',
   '</section>',
   '<input type="file" accept="application/json,.json" data-role="file" hidden />',
@@ -46,7 +47,7 @@ const fileInput = app.querySelector('[data-role="file"]');
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#bdeaf4');
-scene.fog = new THREE.Fog('#bdeaf4', 145, 340);
+scene.fog = new THREE.Fog('#bdeaf4', 175, 390);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -56,14 +57,14 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 viewport.appendChild(renderer.domElement);
 
-const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 600);
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 700);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.enablePan = true;
 controls.zoomToCursor = true;
-controls.minDistance = 30;
-controls.maxDistance = 260;
+controls.minDistance = 35;
+controls.maxDistance = 300;
 controls.maxPolarAngle = THREE.MathUtils.degToRad(88);
 controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
 controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
@@ -72,13 +73,13 @@ controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
 
 scene.add(new THREE.HemisphereLight(0xffffff, 0x6e8491, 2.1));
 const sun = new THREE.DirectionalLight(0xfff0d3, 2.7);
-sun.position.set(-75, 120, 55);
+sun.position.set(-90, 135, 70);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -100;
-sun.shadow.camera.right = 100;
-sun.shadow.camera.top = 100;
-sun.shadow.camera.bottom = -100;
+sun.shadow.camera.left = -120;
+sun.shadow.camera.right = 120;
+sun.shadow.camera.top = 120;
+sun.shadow.camera.bottom = -120;
 scene.add(sun);
 
 let world = BlockWorld.fromReference();
@@ -98,13 +99,13 @@ function rebuildOcean() {
     ocean.geometry.dispose();
     ocean.material.dispose();
   }
-  const geometry = new THREE.PlaneGeometry(360, 360);
+  const geometry = new THREE.PlaneGeometry(430, 430);
   const material = new THREE.MeshStandardMaterial({
-    color: '#45b7d6',
-    roughness: 0.72,
+    color: '#39abc9',
+    roughness: 0.68,
     metalness: 0,
     transparent: true,
-    opacity: 0.92
+    opacity: 0.9
   });
   ocean = new THREE.Mesh(geometry, material);
   ocean.rotation.x = -Math.PI / 2;
@@ -126,18 +127,26 @@ function rebuildTerrain() {
 
 function updateStatus(extra) {
   const suffix = extra ? ' · ' + extra : '';
-  status.textContent = world.width + '×' + world.depth + ' · ' + world.columns.size + ' 地形柱 · ' + tool + '/' + surface + suffix;
+  status.textContent = world.width + '×' + world.depth + ' · ' + world.columns.size + ' 实心地形柱 · ' + tool + '/' + surface + suffix;
 }
 
 function setReferenceView() {
-  camera.position.set(92, 92, 118);
-  controls.target.set(-8, 4, 5);
+  // South/open-sea view: lighthouse remains on the right, matching the key front views.
+  camera.position.set(-8, 102, 178);
+  controls.target.set(0, 4.5, -2);
   controls.update();
 }
 
 function setTopView() {
-  camera.position.set(0, 170, 0.01);
+  camera.position.set(0, 215, 0.01);
   controls.target.set(0, 0, 0);
+  controls.update();
+}
+
+function setRearView() {
+  // Inland/rear view used to compare the back-side silhouette and west green mass.
+  camera.position.set(8, 100, -176);
+  controls.target.set(0, 4.5, 2);
   controls.update();
 }
 
@@ -239,10 +248,11 @@ app.addEventListener('click', function (event) {
     case 'redo': doRedo(); break;
     case 'reference-view': setReferenceView(); break;
     case 'top-view': setTopView(); break;
+    case 'rear-view': setRearView(); break;
     case 'export': downloadWorld(world); updateStatus('JSON 已导出'); break;
     case 'import': fileInput.click(); break;
     case 'reset':
-      if (window.confirm('重置为本次参考图海岸骨架？当前未导出的修改会丢失。')) {
+      if (window.confirm('重置为五视图重构后的 v0.1 海岛基底？当前未导出的修改会丢失。')) {
         world = BlockWorld.fromReference();
         undoStack.length = 0;
         redoStack.length = 0;

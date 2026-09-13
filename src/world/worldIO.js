@@ -9,7 +9,7 @@ export function serializeWorld(world) {
 
   return {
     schema: WORLD_JSON_VERSION,
-    kind: 'coast-skeleton',
+    kind: 'seaside-island-base-v01',
     grid: {
       width: world.width,
       depth: world.depth,
@@ -33,8 +33,8 @@ export function parseWorld(json) {
 
   const width = Number(data.grid?.width);
   const depth = Number(data.grid?.depth);
-  const maxHeight = Number(data.grid?.maxHeight ?? 12);
-  const waterLevel = Number(data.waterLevel ?? 0.4);
+  const maxHeight = Number(data.grid?.maxHeight ?? 16);
+  const waterLevel = Number(data.waterLevel ?? 0.35);
 
   if (!Number.isInteger(width) || !Number.isInteger(depth) || width <= 0 || depth <= 0) {
     throw new Error('地图尺寸无效');
@@ -51,7 +51,7 @@ export function parseWorld(json) {
   return world;
 }
 
-export function downloadWorld(world, filename = 'town-voxel-world-v0.1-coast.json') {
+export function downloadWorld(world, filename = 'town-voxel-world-v0.1-island-base.json') {
   const blob = new Blob([stringifyWorld(world)], { type: 'application/json;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

@@ -1,19 +1,12 @@
 import * as THREE from 'three';
 
 const SURFACE_COLORS = {
-  grass: new THREE.Color('#8fcf72'),
-  sand: new THREE.Color('#efd69a'),
-  rock: new THREE.Color('#8b9499')
+  grass: new THREE.Color('#86c96e'),
+  sand: new THREE.Color('#ead49a'),
+  rock: new THREE.Color('#879096')
 };
-const SIDE_GRASS = new THREE.Color('#7a8e62');
-const SIDE_SAND = new THREE.Color('#c9ad78');
-const SIDE_ROCK = new THREE.Color('#707a80');
-
-function sideColor(surface) {
-  if (surface === 'sand') return SIDE_SAND;
-  if (surface === 'rock') return SIDE_ROCK;
-  return SIDE_GRASS;
-}
+const ROCK_CORE = new THREE.Color('#707a80');
+const ROCK_CORE_DARK = new THREE.Color('#616b72');
 
 function pushQuad(buffers, a, b, c, d, normal, color) {
   const base = buffers.positions.length / 3;
@@ -23,6 +16,10 @@ function pushQuad(buffers, a, b, c, d, normal, color) {
     buffers.colors.push(color.r, color.g, color.b);
   }
   buffers.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+}
+
+function coreColor(y) {
+  return y <= 1 ? ROCK_CORE_DARK : ROCK_CORE;
 }
 
 export function buildTerrainMesh(world) {
@@ -37,8 +34,8 @@ export function buildTerrainMesh(world) {
     const z0 = oz + z;
     const z1 = z0 + 1;
     const topColor = SURFACE_COLORS[surface] || SURFACE_COLORS.grass;
-    const wallColor = sideColor(surface);
 
+    // Surface cap. Grass/sand are only the top layer; the island body is rock.
     pushQuad(b, [x0, height, z0], [x0, height, z1], [x1, height, z1], [x1, height, z0], [0, 1, 0], topColor);
 
     const sides = [
@@ -53,9 +50,17 @@ export function buildTerrainMesh(world) {
       const neighborHeight = neighbor?.height || 0;
       for (let y = neighborHeight; y < height; y++) {
         const q = side.quad(y);
-        pushQuad(b, q[0], q[1], q[2], q[3], side.normal, wallColor);
+        pushQuad(b, q[0], q[1], q[2], q[3], side.normal, coreColor(y));
       }
     }
+
+    // Close the underside. The previous mesh was an open shell; with transparent
+    // water and oblique cameras that made the island read as hollow/leaking.
+    pushQuad(
+      b,
+      [x0, 0, z1], [x0, 0, z0], [x1, 0, z0], [x1, 0, z1],
+      [0, -1, 0], ROCK_CORE_DARK
+    );
   }
 
   const geometry = new THREE.BufferGeometry();
