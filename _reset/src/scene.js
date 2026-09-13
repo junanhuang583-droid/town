@@ -314,9 +314,9 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
   // ------------------------------------------------------------
   // Minimal walking pet test
   // ------------------------------------------------------------
-  // v0.3: whale-girl 2D sprite visual + existing terrain traversal.
+  // v0.4: distance-synchronised walking gait built from the source move rows.
   // Only idle/walk are enabled. No needs/interactions/AI yet.
-  const PET_SPEED = 2.35;
+  const PET_SPEED = 1.45;
   const PET_MAX_STEP = 1;
 
   const PET_ATLAS_COLS = 8;
@@ -324,8 +324,6 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
   const PET_SPRITE_HEIGHT = 2.75;
   const PET_SPRITE_WIDTH = PET_SPRITE_HEIGHT * (192 / 208);
   const PET_LOCAL_ATLAS = './assets/whale-girl/spritesheet.webp';
-  const PET_PINNED_FALLBACK =
-    'https://raw.githubusercontent.com/f0909172434/deepseek-girl-codex-pet/2572709632b0e81401b9e92994f2c3786c186397/pet/spritesheet.webp';
 
   const pet = new THREE.Group();
 
@@ -353,11 +351,20 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
   let petAnimTime = 0;
   let petAnimFrame = -1;
   let petFacingRight = true;
+  let petGaitDistance = 0;
+
+  // The source rows are "running-right" and "running-left".
+  // For Town v0.4 we intentionally keep only the contact/passing poses:
+  // 0 = contact A, 2 = passing A, 4 = contact B, 6 = passing B.
+  // This removes the more airborne-looking in-between poses and creates
+  // a calmer four-pose walking cycle without inventing new artwork.
+  const PET_WALK_SEQUENCE = [0, 2, 4, 6];
+  const PET_WALK_CYCLE_METERS = 1.55;
 
   const PET_ANIMS = {
-    idle: { row: 0, frames: 6, fps: 5.2 },
-    right: { row: 1, frames: 8, fps: 9.5 },
-    left: { row: 2, frames: 8, fps: 9.5 }
+    idle: { row: 0, sequence: [0, 1, 2, 3, 4, 5], fps: 5.2 },
+    right: { row: 1, sequence: PET_WALK_SEQUENCE },
+    left: { row: 2, sequence: PET_WALK_SEQUENCE }
   };
 
   function applyPetAtlasFrame(row, frame) {
@@ -375,13 +382,28 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
     if (!PET_ANIMS[mode]) mode = 'idle';
 
     if (petAnimMode !== mode || restart) {
+      const wasWalking = petAnimMode === 'right' || petAnimMode === 'left';
+      const willWalk = mode === 'right' || mode === 'left';
+
       petAnimMode = mode;
-      petAnimTime = 0;
       petAnimFrame = -1;
+
+      // Preserve the gait phase when merely changing left/right facing.
+      // Reset only when entering/leaving the walking state.
+      if (restart || wasWalking !== willWalk) {
+        petAnimTime = 0;
+        if (willWalk) petGaitDistance = 0;
+      }
     }
   }
 
-  function updatePetAtlasAnimation(dt, moving, moveDx = 0, moveDz = 0) {
+  function updatePetAtlasAnimation(
+    dt,
+    moving,
+    moveDx = 0,
+    moveDz = 0,
+    travelledDistance = 0
+  ) {
     if (moving && (Math.abs(moveDx) > 0.0001 || Math.abs(moveDz) > 0.0001)) {
       camera.updateMatrixWorld();
 
@@ -409,13 +431,28 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
     }
 
     const spec = PET_ANIMS[petAnimMode];
-    petAnimTime += dt;
+    let sequenceIndex = 0;
 
-    const nextFrame = Math.floor(petAnimTime * spec.fps) % spec.frames;
+    if (petAnimMode === 'idle') {
+      petAnimTime += dt;
+      sequenceIndex =
+        Math.floor(petAnimTime * spec.fps) % spec.sequence.length;
+    } else {
+      // Tie footfall phase to actual world distance instead of elapsed time.
+      // Turning a corner or swapping left/right artwork therefore never
+      // restarts on the same support foot.
+      petGaitDistance += Math.max(0, travelledDistance);
+      const cyclePhase =
+        (petGaitDistance % PET_WALK_CYCLE_METERS) / PET_WALK_CYCLE_METERS;
+      sequenceIndex =
+        Math.floor(cyclePhase * spec.sequence.length) % spec.sequence.length;
+    }
 
-    if (nextFrame !== petAnimFrame) {
-      petAnimFrame = nextFrame;
-      applyPetAtlasFrame(spec.row, nextFrame);
+    const atlasFrame = spec.sequence[sequenceIndex];
+
+    if (atlasFrame !== petAnimFrame || petAnimMode === 'idle') {
+      petAnimFrame = atlasFrame;
+      applyPetAtlasFrame(spec.row, atlasFrame);
     }
   }
 
@@ -438,23 +475,15 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
   }
 
   const petTextureLoader = new THREE.TextureLoader();
-  petTextureLoader.setCrossOrigin('anonymous');
 
   petTextureLoader.load(
     PET_LOCAL_ATLAS,
     texture => configurePetAtlas(texture, 'local'),
     undefined,
     () => {
-      petTextureLoader.load(
-        PET_PINNED_FALLBACK,
-        texture => configurePetAtlas(texture, 'pinned-fallback'),
-        undefined,
-        () => {
-          petAtlasSource = 'failed';
-          petSprite.visible = false;
-          updateStatus();
-        }
-      );
+      petAtlasSource = 'failed';
+      petSprite.visible = false;
+      updateStatus();
     }
   );
 
@@ -782,7 +811,16 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
     pet.position.z = THREE.MathUtils.lerp(segment.start.z, segment.end.z, t);
     pet.position.y = petSegmentY(segment, t);
 
-    updatePetAtlasAnimation(dt, true, segment.dx, segment.dz);
+    const travelledDistance =
+      Math.hypot(segment.dx, segment.dz) * (dt / segment.duration);
+
+    updatePetAtlasAnimation(
+      dt,
+      true,
+      segment.dx,
+      segment.dz,
+      travelledDistance
+    );
 
     if (t >= 1) {
       pet.position.copy(segment.end);
@@ -1426,7 +1464,7 @@ export function createVoxelIslandV2(THREE, OrbitControls, app) {
     const mode = editMode ? '编辑模式' : '视角模式';
 
     status.innerHTML =
-      `<b>Voxel Island v2 · Pet v0.3 · ${mode}</b>　工具：${toolLabel()}　表面：${surfaceLabel()}　画笔：${brushSize}×${brushSize}　地块：${columns.size}<br>宠物图集：${petAtlasSource === 'local' ? '本地' : petAtlasSource === 'pinned-fallback' ? '固定源备用' : petAtlasSource === 'failed' ? '加载失败' : '加载中'}<br>` +
+      `<b>Voxel Island v2 · Pet v0.4 · ${mode}</b>　工具：${toolLabel()}　表面：${surfaceLabel()}　画笔：${brushSize}×${brushSize}　地块：${columns.size}<br>宠物图集：${petAtlasSource === 'local' ? '本地' : petAtlasSource === 'failed' ? '加载失败' : '加载中'}<br>` +
       (editMode
         ? '点击地形修改；点击海面可直接从海里新增地块。所有高差侧面会自动显示岩壁。 '
         : '单指旋转，双指缩放/平移。进入编辑后再修改地形。 ');
