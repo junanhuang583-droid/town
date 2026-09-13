@@ -1,379 +1,665 @@
-export function createSeasideBlockout(THREE, OrbitControls, app) {
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xa8deea);
-  scene.fog = new THREE.Fog(0xa8deea, 105, 190);
+export function mountMap(app) {
+  app.innerHTML = '';
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
-  app.appendChild(renderer.domElement);
+  const TILE = 16;
+  const MAP_W = 96;
+  const MAP_H = 72;
+  const WORLD_W = MAP_W * TILE;
+  const WORLD_H = MAP_H * TILE;
 
-  const frustum = 84;
-  const camera = new THREE.OrthographicCamera(-42, 42, 42, -42, 0.1, 300);
-  camera.position.set(76, 72, 82);
-  camera.lookAt(0, 4, 8);
-
-  const controls = new OrbitControls(camera, renderer.domElement);
-  controls.target.set(0, 4, 8);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.075;
-  controls.enablePan = true;
-  controls.screenSpacePanning = true;
-  controls.zoomToCursor = true;
-  controls.minZoom = 0.42;
-  controls.maxZoom = 2.35;
-  controls.minPolarAngle = THREE.MathUtils.degToRad(42);
-  controls.maxPolarAngle = THREE.MathUtils.degToRad(59);
-  controls.minAzimuthAngle = THREE.MathUtils.degToRad(20);
-  controls.maxAzimuthAngle = THREE.MathUtils.degToRad(70);
-
-  scene.add(new THREE.HemisphereLight(0xf3fbff, 0x8f806e, 2.15));
-  const sun = new THREE.DirectionalLight(0xfff0d6, 3.0);
-  sun.position.set(-48, 70, -35);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -90;
-  sun.shadow.camera.right = 90;
-  sun.shadow.camera.top = 90;
-  sun.shadow.camera.bottom = -90;
-  sun.shadow.camera.near = 1;
-  sun.shadow.camera.far = 220;
-  sun.shadow.bias = -0.00025;
-  scene.add(sun);
-
-  const C = {
-    water: 0x58bfd7,
-    waterDeep: 0x3ca0c1,
-    cliff: 0x8d8274,
-    cliffLight: 0xaa9a85,
-    grassHigh: 0xa9d38e,
-    grassMid: 0x97c887,
-    grassLow: 0x84b879,
-    sand: 0xebcf91,
-    road: 0xb9aa91,
-    stone: 0xc4bbaa,
-    plaza: 0xd9d0bd,
-    wood: 0x9a6f4f,
-    rail: 0x4d5559,
-    station: 0x9db5bc,
-    cottage: 0xc9c0ab,
-    inn: 0x9fb5c0,
-    dessert: 0xe7b6a9,
-    general: 0xa8bd92,
-    cafe: 0xd7a59a,
-    seafood: 0xb8a2b7,
-    rental: 0xbba98d,
-    lighthouse: 0xe9e5d8,
-    red: 0xbd5e58,
-    blue: 0x6b8fa7,
-    green: 0x6f8f70,
-    foliage: 0x668e68
+  const P = {
+    sea0: '#235f87',
+    sea1: '#2f789e',
+    sea2: '#428fb0',
+    foam: '#91c6d3',
+    grass0: '#547f53',
+    grass1: '#638f59',
+    grass2: '#77a666',
+    grassHi: '#829d60',
+    cliff0: '#55483f',
+    cliff1: '#6a594a',
+    cliff2: '#806b55',
+    sand0: '#c8aa6b',
+    sand1: '#ddc184',
+    sand2: '#ead49b',
+    road0: '#816f59',
+    road1: '#a08a68',
+    road2: '#b59e76',
+    stone0: '#77756e',
+    stone1: '#969188',
+    stone2: '#b4ada0',
+    wood0: '#6b4732',
+    wood1: '#87583a',
+    wood2: '#a56c44',
+    outline: '#2f2c2c',
+    ink: '#202628',
+    wallCream: '#c7b68e',
+    wallBlue: '#93aead',
+    wallRose: '#c18f82',
+    wallGreen: '#9baa78',
+    roofRed: '#78463e',
+    roofBlue: '#415c72',
+    roofGreen: '#4d684d',
+    roofPurple: '#5e4c66',
+    roofBrown: '#624a37',
+    window: '#8fc1c3',
+    lamp: '#f2d58a',
+    flowerPink: '#d68b9d',
+    flowerYellow: '#e1c56c',
+    flowerPurple: '#9877a9',
+    treeDark: '#355944',
+    treeMid: '#497250',
+    treeLight: '#608a5a',
+    pineDark: '#294d3d',
+    pineMid: '#3b6550'
   };
 
-  const mat = (color) => new THREE.MeshToonMaterial({ color });
+  const viewport = document.createElement('div');
+  viewport.className = 'pixel-viewport';
 
-  function box(w, h, d, color, x, y, z, rot = 0) {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
-    mesh.position.set(x, y, z);
-    mesh.rotation.y = rot;
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    scene.add(mesh);
-    return mesh;
+  const canvas = document.createElement('canvas');
+  canvas.className = 'pixel-map';
+  canvas.width = WORLD_W;
+  canvas.height = WORLD_H;
+  canvas.setAttribute('aria-label', 'Pixel Town v0.1 海滨小镇地图');
+  viewport.appendChild(canvas);
+  app.appendChild(viewport);
+
+  const hud = document.createElement('div');
+  hud.className = 'pixel-hud';
+  hud.innerHTML = '<b>Pixel Town v0.1</b><span>海滨小镇 · 世界初版</span>';
+  app.appendChild(hud);
+
+  const controls = document.createElement('div');
+  controls.className = 'pixel-controls';
+  controls.innerHTML =
+    '<button data-action="out">−</button>' +
+    '<button data-action="fit">全图</button>' +
+    '<button data-action="in">＋</button>';
+  app.appendChild(controls);
+
+  const ctx = canvas.getContext('2d', { alpha: false });
+  ctx.imageSmoothingEnabled = false;
+
+  function tx(v) { return Math.round(v * TILE); }
+  function ty(v) { return Math.round(v * TILE); }
+
+  function rect(x, y, w, h, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
   }
 
-  function cylinder(rt, rb, h, color, x, y, z, seg = 24) {
-    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat(color));
-    mesh.position.set(x, y, z);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    scene.add(mesh);
-    return mesh;
+  function tileRect(x, y, w, h, color) {
+    rect(tx(x), ty(y), tx(w), ty(h), color);
   }
 
-  function prism(points, bottomY, topY, color) {
-    const contour = points.map(([x, z]) => new THREE.Vector2(x, z));
-    const faces = THREE.ShapeUtils.triangulateShape(contour, []);
-    const verts = [];
-    const idx = [];
-    const n = points.length;
+  function poly(points, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(tx(points[0][0]), ty(points[0][1]));
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(tx(points[i][0]), ty(points[i][1]));
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
 
-    for (const [x, z] of points) verts.push(x, bottomY, z);
-    for (const [x, z] of points) verts.push(x, topY, z);
+  function hash(x, y, seed = 0) {
+    let n = (x * 374761393 + y * 668265263 + seed * 2147483647) >>> 0;
+    n = (n ^ (n >> 13)) * 1274126177;
+    return ((n ^ (n >> 16)) >>> 0) / 4294967295;
+  }
 
-    for (const tri of faces) {
-      idx.push(n + tri[0], n + tri[1], n + tri[2]);
-      idx.push(tri[2], tri[1], tri[0]);
+  function pixelNoiseArea(x0, y0, x1, y1, color, density, seed = 1) {
+    ctx.fillStyle = color;
+    for (let y = y0; y < y1; y++) {
+      for (let x = x0; x < x1; x++) {
+        if (hash(x, y, seed) < density) {
+          const px = tx(x) + Math.floor(hash(x, y, seed + 9) * 12) + 2;
+          const py = ty(y) + Math.floor(hash(x, y, seed + 17) * 12) + 2;
+          rect(px, py, 2, 2, color);
+        }
+      }
+    }
+  }
+
+  function drawSea() {
+    rect(0, 0, WORLD_W, WORLD_H, P.sea0);
+    for (let y = 1; y < MAP_H; y += 2) {
+      const offset = (y % 4) * 4;
+      for (let x = -1; x < MAP_W; x += 5) {
+        const k = hash(x, y, 31);
+        if (k < 0.45) continue;
+        const px = tx(x) + offset;
+        const py = ty(y) + 7;
+        rect(px, py, 18, 2, k > 0.76 ? P.sea2 : P.sea1);
+        if (k > 0.88) rect(px + 5, py - 3, 8, 2, P.foam);
+      }
+    }
+  }
+
+  const MAIN_LAND = [
+    [0, 0], [74, 0], [74, 3], [79, 3], [79, 8], [82, 8], [82, 14],
+    [85, 14], [85, 20], [83, 20], [83, 27], [87, 27], [87, 34],
+    [84, 34], [84, 39], [81, 39], [81, 44], [77, 44], [77, 49],
+    [72, 49], [72, 53], [67, 53], [67, 57], [59, 57], [59, 60],
+    [48, 60], [48, 62], [38, 62], [38, 64], [26, 64], [26, 63],
+    [16, 63], [16, 61], [8, 61], [8, 58], [0, 58]
+  ];
+
+  function drawLand() {
+    const cliff = MAIN_LAND.map(([x, y]) => [x, y + 1.15]);
+    poly(cliff, P.cliff0);
+    poly(MAIN_LAND, P.grass1);
+
+    const highland = [
+      [0, 0], [72, 0], [72, 4], [75, 4], [75, 9], [72, 9], [72, 13],
+      [67, 13], [67, 15], [58, 15], [58, 17], [45, 17], [45, 16],
+      [31, 16], [31, 18], [19, 18], [19, 17], [8, 17], [8, 15], [0, 15]
+    ];
+    poly(highland, P.grassHi);
+
+    tileRect(0, 15, 74, 1, P.cliff2);
+    tileRect(0, 16, 74, 1, P.cliff0);
+    for (let x = 0; x < 74; x += 2) {
+      rect(tx(x) + 3, ty(15) + 4, 10, 3, P.cliff1);
     }
 
-    for (let i = 0; i < n; i++) {
-      const j = (i + 1) % n;
-      idx.push(i, j, n + j, i, n + j, n + i);
+    const lowShelf = [
+      [0, 50], [16, 50], [16, 52], [30, 52], [30, 51], [45, 51],
+      [45, 53], [58, 53], [58, 56], [67, 56], [67, 58], [59, 58],
+      [59, 61], [48, 61], [48, 63], [38, 63], [38, 65], [26, 65],
+      [26, 64], [16, 64], [16, 62], [8, 62], [8, 59], [0, 59]
+    ];
+    poly(lowShelf, P.grass0);
+
+    tileRect(0, 49, 59, 1, P.cliff2);
+    tileRect(0, 50, 59, 1, P.cliff0);
+    for (let x = 1; x < 58; x += 3) {
+      rect(tx(x), ty(49) + 3, 14, 3, P.cliff1);
     }
 
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    g.setIndex(idx);
-    g.computeVertexNormals();
+    const beach = [
+      [67, 33], [74, 33], [74, 35], [79, 35], [79, 39], [83, 39],
+      [83, 44], [80, 44], [80, 48], [75, 48], [75, 52], [69, 52],
+      [65, 49], [64, 43], [65, 38]
+    ];
+    poly(beach, P.sand1);
+    pixelNoiseArea(66, 35, 81, 51, P.sand2, 0.22, 44);
 
-    const mesh = new THREE.Mesh(g, mat(color));
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    scene.add(mesh);
-    return mesh;
+    const lightIsland = [
+      [80, 54], [85, 52], [91, 53], [95, 57], [95, 66], [92, 70],
+      [85, 71], [80, 68], [78, 62]
+    ];
+    const lightCliff = lightIsland.map(([x, y]) => [x, y + 0.8]);
+    poly(lightCliff, P.cliff0);
+    poly(lightIsland, P.grass0);
+
+    pixelNoiseArea(0, 0, 74, 15, '#91aa70', 0.18, 5);
+    pixelNoiseArea(0, 18, 66, 49, '#79a15f', 0.11, 7);
+    pixelNoiseArea(0, 51, 58, 62, '#63894f', 0.1, 8);
   }
 
-  function ribbon(points, width, y, color, segments = 90) {
-    const curve = new THREE.CatmullRomCurve3(
-      points.map(([x, z]) => new THREE.Vector3(x, y, z)),
-      false,
-      'catmullrom',
-      0.42
-    );
-    const pos = [];
-    const idx = [];
+  function roadRect(x, y, w, h, shade = P.road1) {
+    tileRect(x - 0.2, y - 0.2, w + 0.4, h + 0.4, P.road0);
+    tileRect(x, y, w, h, shade);
+    if (w > h) {
+      for (let i = 0; i < w; i += 2) {
+        rect(tx(x + i) + 4, ty(y) + Math.floor(tx(h) / 2), 8, 2, P.road2);
+      }
+    }
+  }
 
-    for (let i = 0; i <= segments; i++) {
-      const t = i / segments;
-      const p = curve.getPoint(t);
-      const tangent = curve.getTangent(t).normalize();
-      const side = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize().multiplyScalar(width / 2);
-      pos.push(p.x + side.x, y, p.z + side.z);
-      pos.push(p.x - side.x, y, p.z - side.z);
+  function drawRoads() {
+    roadRect(4, 18, 64, 3);
+    roadRect(12, 18, 3, 29);
+    roadRect(28, 18, 3, 30);
+    roadRect(46, 18, 3, 31);
+    roadRect(62, 18, 3, 30);
 
-      if (i < segments) {
-        const a = i * 2;
-        idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    roadRect(12, 29, 53, 3);
+    roadRect(12, 43, 53, 3);
+    roadRect(27, 48, 3, 4);
+    roadRect(46, 48, 3, 4);
+
+    tileRect(14, 15, 5, 3, P.stone1);
+    tileRect(15, 16, 3, 1, P.stone2);
+    tileRect(50, 15, 5, 3, P.stone1);
+    tileRect(51, 16, 3, 1, P.stone2);
+
+    roadRect(64, 35, 3, 13, P.sand0);
+
+    tileRect(34, 51, 31, 3, P.wood0);
+    tileRect(35, 51, 30, 2.5, P.wood1);
+    for (let x = 35; x < 65; x += 2) {
+      rect(tx(x), ty(51), 2, ty(2.5), P.wood2);
+    }
+
+    tileRect(64, 44, 16, 3, P.wood0);
+    tileRect(65, 44, 15, 2, P.wood1);
+    for (let x = 65; x < 80; x += 2) {
+      rect(tx(x), ty(44), 2, ty(2), P.wood2);
+    }
+
+    tileRect(76, 45, 3, 10, P.wood0);
+    tileRect(77, 45, 2, 10, P.wood1);
+  }
+
+  function roofPixels(x, y, w, color) {
+    const px = tx(x);
+    const py = ty(y);
+    const ww = tx(w);
+    rect(px + 4, py, ww - 8, 4, P.outline);
+    rect(px, py + 4, ww, 7, P.outline);
+    rect(px + 4, py + 4, ww - 8, 5, color);
+    rect(px + 8, py, ww - 16, 5, color);
+    rect(px + 6, py + 9, ww - 12, 3, '#9a6958');
+  }
+
+  function windowPx(x, y) {
+    rect(x, y, 12, 11, P.outline);
+    rect(x + 2, y + 2, 8, 7, P.window);
+    rect(x + 6, y + 2, 2, 7, '#d9ece4');
+  }
+
+  function building(x, y, w, h, wall, roof, opts = {}) {
+    const px = tx(x);
+    const py = ty(y);
+    const ww = tx(w);
+    const hh = tx(h);
+
+    rect(px + 5, py + 9, ww, hh, '#26363a55');
+    rect(px, py + 8, ww, hh - 8, P.outline);
+    rect(px + 3, py + 11, ww - 6, hh - 14, wall);
+
+    roofPixels(x - 0.25, y, w + 0.5, roof);
+
+    const doorW = 12;
+    const doorH = 19;
+    const doorX = px + Math.floor(ww / 2) - Math.floor(doorW / 2);
+    const doorY = py + hh - doorH - 2;
+    rect(doorX, doorY, doorW, doorH, P.outline);
+    rect(doorX + 2, doorY + 2, doorW - 4, doorH - 2, '#5d493b');
+
+    if (w >= 6) {
+      windowPx(px + 10, py + hh - 30);
+      windowPx(px + ww - 22, py + hh - 30);
+    }
+
+    if (opts.awning) {
+      rect(px + 8, py + hh - 35, ww - 16, 7, opts.awning);
+      for (let xx = px + 10; xx < px + ww - 10; xx += 12) {
+        rect(xx, py + hh - 35, 5, 7, '#efe0c1');
       }
     }
 
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setIndex(idx);
-    g.computeVertexNormals();
+    if (opts.sign) {
+      rect(px + ww - 16, py + 16, 12, 12, P.outline);
+      rect(px + ww - 14, py + 18, 8, 8, opts.sign);
+    }
 
-    const mesh = new THREE.Mesh(g, mat(color));
-    mesh.receiveShadow = true;
-    scene.add(mesh);
-    return mesh;
-  }
-
-  function roof(w, d, color, x, y, z, rot = 0) {
-    const span = Math.max(w, d);
-    const mesh = new THREE.Mesh(new THREE.ConeGeometry(span * 0.72, Math.max(1.8, w * 0.28), 4), mat(color));
-    mesh.position.set(x, y, z);
-    mesh.rotation.y = Math.PI * 0.25 + rot;
-    mesh.scale.set(w / span, 1, d / span);
-    mesh.castShadow = true;
-    scene.add(mesh);
-    return mesh;
-  }
-
-  function building({ x, z, w, d, h, body, roofColor, rot = 0, level = 4.15 }) {
-    box(w, h, d, body, x, level + h * 0.5, z, rot);
-    roof(w * 1.08, d * 1.08, roofColor, x, level + h + 1.15, z, rot);
-  }
-
-  function treeMass(x, z, s = 1, level = 1.75) {
-    cylinder(0.24 * s, 0.3 * s, 1.7 * s, 0x80644c, x, level + 0.85 * s, z, 10);
-    const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(1.15 * s, 1), mat(C.foliage));
-    crown.position.set(x, level + 2.25 * s, z);
-    crown.scale.set(1.05, 1.2, 1.05);
-    crown.castShadow = true;
-    scene.add(crown);
-  }
-
-  function stairs(x, z, w, length, steps, lowY, rise) {
-    for (let i = 0; i < steps; i++) {
-      const t = i / Math.max(1, steps - 1);
-      const pz = z + (t - 0.5) * length;
-      box(w, 0.24, length / steps * 0.94, C.stone, x, lowY + t * rise, pz);
+    if (opts.chimney) {
+      rect(px + ww - 19, py + 1, 7, 13, P.outline);
+      rect(px + ww - 17, py + 3, 3, 10, '#735449');
     }
   }
 
-  function railTrack(z) {
-    box(58, 0.17, 0.18, C.rail, -19, 7.35, z, -0.025);
-    box(58, 0.17, 0.18, C.rail, -19, 7.35, z + 1.15, -0.025);
-    for (let i = 0; i < 24; i++) {
-      box(0.22, 0.12, 1.7, 0x725c49, -47 + i * 2.45, 7.18, z + 0.58, -0.025);
+  function station(x, y) {
+    building(x, y, 12, 7, P.wallBlue, P.roofBlue, { chimney: true });
+    const px = tx(x);
+    const py = ty(y);
+    rect(px + 14, py + 61, tx(9), 4, P.stone0);
+    rect(px + 18, py + 65, tx(8), 3, P.stone2);
+    rect(px + tx(12) + 8, py + 20, 18, 12, P.outline);
+    rect(px + tx(12) + 10, py + 22, 14, 8, '#d59c58');
+  }
+
+  function drawBuildings() {
+    station(7, 5);
+
+    building(29, 5, 7, 6, P.wallCream, P.roofRed, { chimney: true });
+    building(42, 6, 7, 6, P.wallGreen, P.roofGreen, { chimney: true });
+    building(56, 5, 8, 6, P.wallCream, P.roofBlue);
+
+    building(6, 22, 10, 7, P.wallBlue, P.roofBlue, { chimney: true });
+    building(21, 22, 7, 6, P.wallCream, P.roofRed, { awning: '#c97967' });
+    building(34, 22, 8, 6, P.wallGreen, P.roofGreen, { awning: '#739364' });
+
+    building(6, 35, 10, 7, P.wallRose, P.roofRed, { awning: '#c47b72', chimney: true });
+    building(21, 36, 9, 7, '#bca4b7', P.roofPurple, { awning: '#8b6c88', sign: '#73abc0' });
+    building(35, 36, 8, 6, '#c8b794', P.roofBrown, { sign: '#67aebf' });
+
+    building(52, 22, 8, 6, '#b9ab88', P.roofBrown, { chimney: true });
+    building(52, 35, 8, 6, '#b6c29a', P.roofGreen, { chimney: true });
+
+    building(70, 39, 6, 5, P.wallBlue, P.roofBlue, { sign: '#66abc0' });
+
+    building(83, 59, 6, 6, P.wallCream, P.roofRed);
+  }
+
+  function plaza() {
+    tileRect(44, 31, 14, 11, P.stone0);
+    tileRect(45, 32, 12, 9, P.stone1);
+    for (let y = 32; y < 41; y++) {
+      for (let x = 45; x < 57; x++) {
+        if ((x + y) % 2 === 0) rect(tx(x) + 2, ty(y) + 2, 3, 3, P.stone2);
+      }
+    }
+
+    tileRect(49, 34, 4, 4, P.outline);
+    tileRect(49.25, 34.25, 3.5, 3.5, '#6f9ba2');
+    tileRect(50, 35, 2, 2, '#9bc5c7');
+    rect(tx(50.75), ty(33.2), 8, 18, P.stone2);
+    rect(tx(50.95), ty(32.9), 4, 10, P.lamp);
+  }
+
+  function tree(x, y, s = 1) {
+    const px = tx(x);
+    const py = ty(y);
+    const u = Math.max(1, Math.round(s * 2));
+
+    rect(px - 3 * u, py + 6 * u, 6 * u, 12 * u, '#5e4635');
+    rect(px - 11 * u, py - 1 * u, 22 * u, 15 * u, P.treeDark);
+    rect(px - 8 * u, py - 7 * u, 18 * u, 16 * u, P.treeMid);
+    rect(px - 2 * u, py - 10 * u, 10 * u, 8 * u, P.treeLight);
+    rect(px + 3 * u, py - 6 * u, 4 * u, 4 * u, '#79a76a');
+  }
+
+  function pine(x, y, s = 1) {
+    const px = tx(x);
+    const py = ty(y);
+    const u = Math.max(1, Math.round(s * 2));
+    rect(px - 2 * u, py + 4 * u, 4 * u, 12 * u, '#5a4332');
+    rect(px - 10 * u, py + 1 * u, 20 * u, 6 * u, P.pineDark);
+    rect(px - 8 * u, py - 5 * u, 16 * u, 7 * u, P.pineMid);
+    rect(px - 6 * u, py - 10 * u, 12 * u, 6 * u, P.pineDark);
+  }
+
+  function flowerPatch(x, y, color) {
+    rect(tx(x), ty(y), tx(2.3), 6, P.treeDark);
+    for (let i = 0; i < 5; i++) {
+      rect(tx(x) + 3 + i * 6, ty(y) - (i % 2) * 2, 4, 4, color);
     }
   }
 
-  const waterUniforms = {
-    uTime: { value: 0 },
-    uA: { value: new THREE.Color(C.waterDeep) },
-    uB: { value: new THREE.Color(C.water) }
-  };
+  function lamp(x, y) {
+    rect(tx(x) + 5, ty(y), 3, 18, '#343d3e');
+    rect(tx(x) + 2, ty(y) - 3, 9, 7, P.outline);
+    rect(tx(x) + 4, ty(y) - 1, 5, 3, P.lamp);
+  }
 
-  const waterMat = new THREE.ShaderMaterial({
-    uniforms: waterUniforms,
-    vertexShader: `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform float uTime;
-      uniform vec3 uA;
-      uniform vec3 uB;
-      varying vec2 vUv;
-      void main() {
-        float w1 = sin(vUv.x * 48.0 + uTime * 0.45) * 0.5 + 0.5;
-        float w2 = sin(vUv.y * 70.0 - uTime * 0.62 + vUv.x * 9.0) * 0.5 + 0.5;
-        vec3 c = mix(uA, uB, 0.44 + vUv.y * 0.25 + w1 * 0.035 + w2 * 0.025);
-        gl_FragColor = vec4(c, 1.0);
-      }
-    `
+  function bench(x, y) {
+    rect(tx(x), ty(y), 24, 5, P.wood2);
+    rect(tx(x), ty(y) + 7, 24, 4, P.wood1);
+    rect(tx(x) + 3, ty(y) + 11, 3, 8, P.outline);
+    rect(tx(x) + 18, ty(y) + 11, 3, 8, P.outline);
+  }
+
+  function drawDecor() {
+    const highTrees = [
+      [3, 4, 1], [23, 5, 1], [26, 10, 1], [38, 4, 1], [52, 4, 1],
+      [68, 4, 1], [70, 10, 1], [3, 12, 1], [23, 13, 1], [37, 13, 1],
+      [64, 13, 1]
+    ];
+    highTrees.forEach(([x, y, s], i) => (i % 3 === 0 ? pine(x, y, s) : tree(x, y, s)));
+
+    for (let x = 1; x < 74; x += 4) {
+      if ([9, 13, 17, 29, 33, 45, 49, 57, 61].includes(x)) continue;
+      if (hash(x, 12, 90) > 0.42) pine(x, 14, 0.9);
+    }
+
+    const townTrees = [
+      [3, 23], [18, 24], [32, 24], [47, 23], [66, 23],
+      [4, 34], [18, 35], [32, 34], [65, 35],
+      [4, 46], [18, 46], [33, 46], [60, 46],
+      [10, 54], [19, 56], [31, 55], [54, 55], [61, 54]
+    ];
+    townTrees.forEach(([x, y], i) => tree(x, y, i % 4 === 0 ? 1.05 : 0.9));
+
+    flowerPatch(17, 27, P.flowerPink);
+    flowerPatch(35, 28, P.flowerYellow);
+    flowerPatch(5, 44, P.flowerPurple);
+    flowerPatch(21, 44, P.flowerPink);
+    flowerPatch(53, 44, P.flowerYellow);
+    flowerPatch(59, 28, P.flowerPurple);
+
+    bench(42, 39);
+    bench(57, 39);
+    lamp(43, 33);
+    lamp(59, 33);
+    lamp(18, 31);
+    lamp(34, 31);
+    lamp(61, 31);
+
+    for (let x = 6; x < 64; x += 8) {
+      rect(tx(x), ty(47), 3, 12, '#4a3c31');
+      rect(tx(x), ty(47), tx(5), 3, '#78604a');
+    }
+
+    // Beach details
+    rect(tx(72), ty(36), 3, 28, '#6e4f3c');
+    rect(tx(69.8), ty(35.5), 34, 4, '#b85d5d');
+    rect(tx(70.5), ty(35.75), 20, 3, '#e9d69e');
+
+    tileRect(72, 48, 3, 1.4, '#65a6ae');
+    tileRect(76, 46.5, 2.3, 1.2, '#5b9da7');
+    tileRect(68.5, 45, 2.4, 1.1, '#72adb1');
+
+    // Lighthouse
+    rect(tx(86) + 5, ty(56), 20, 80, P.outline);
+    rect(tx(86) + 9, ty(56) + 4, 12, 76, '#ddd6c4');
+    rect(tx(86) + 9, ty(59), 12, 10, '#a64d45');
+    rect(tx(86) + 4, ty(55), 22, 10, P.outline);
+    rect(tx(86) + 7, ty(55) + 2, 16, 6, '#6fa5ad');
+    rect(tx(86) + 1, ty(54) + 4, 28, 5, P.roofRed);
+  }
+
+  function drawCoastFoam() {
+    const foam = [
+      [75, 50, 10], [68, 55, 11], [58, 61, 9], [47, 64, 10], [35, 66, 9],
+      [80, 42, 7], [85, 35, 6], [90, 52, 5], [94, 57, 5]
+    ];
+    foam.forEach(([x, y, w], i) => {
+      rect(tx(x), ty(y), tx(w * 0.6), 2, i % 2 ? P.foam : '#a7d2d9');
+      rect(tx(x) + 8, ty(y) + 5, tx(w * 0.35), 2, P.foam);
+    });
+  }
+
+  function drawTown() {
+    drawSea();
+    drawLand();
+    drawRoads();
+    plaza();
+    drawBuildings();
+    drawDecor();
+    drawCoastFoam();
+
+    // Tiny rail line across the highland.
+    tileRect(2, 3, 67, 0.35, '#2f3437');
+    tileRect(2, 4.1, 67, 0.35, '#2f3437');
+    for (let x = 2; x < 69; x += 2) {
+      rect(tx(x), ty(3.35), 3, 15, '#5d493a');
+    }
+  }
+
+  drawTown();
+
+  let scale = 1;
+  let minScale = 0.25;
+  let maxScale = 3.2;
+  let offsetX = 0;
+  let offsetY = 0;
+  let dragging = false;
+  let lastX = 0;
+  let lastY = 0;
+  const activePointers = new Map();
+  let pinchStartDistance = 0;
+  let pinchStartScale = 1;
+
+  function clampView() {
+    const vw = viewport.clientWidth;
+    const vh = viewport.clientHeight;
+    const sw = WORLD_W * scale;
+    const sh = WORLD_H * scale;
+
+    const margin = 80;
+
+    if (sw <= vw) offsetX = (vw - sw) / 2;
+    else offsetX = Math.min(margin, Math.max(vw - sw - margin, offsetX));
+
+    if (sh <= vh) offsetY = (vh - sh) / 2;
+    else offsetY = Math.min(margin, Math.max(vh - sh - margin, offsetY));
+  }
+
+  function applyTransform() {
+    clampView();
+    canvas.style.transform =
+      'translate3d(' + Math.round(offsetX) + 'px,' +
+      Math.round(offsetY) + 'px,0) scale(' + scale.toFixed(4) + ')';
+  }
+
+  function fitWholeMap() {
+    const vw = viewport.clientWidth;
+    const vh = viewport.clientHeight;
+    minScale = Math.min(vw / WORLD_W, vh / WORLD_H) * 0.94;
+    scale = minScale;
+    offsetX = (vw - WORLD_W * scale) / 2;
+    offsetY = (vh - WORLD_H * scale) / 2;
+    applyTransform();
+  }
+
+  function focusTown() {
+    const vw = viewport.clientWidth;
+    const vh = viewport.clientHeight;
+    minScale = Math.min(vw / WORLD_W, vh / WORLD_H) * 0.94;
+
+    if (vw / vh < 0.72) {
+      scale = Math.max(minScale, vh / WORLD_H * 0.9);
+      const focusX = tx(48);
+      const focusY = ty(34);
+      offsetX = vw / 2 - focusX * scale;
+      offsetY = vh / 2 - focusY * scale;
+    } else {
+      scale = Math.max(minScale, Math.min(vw / WORLD_W, vh / WORLD_H) * 1.08);
+      offsetX = (vw - WORLD_W * scale) / 2;
+      offsetY = (vh - WORLD_H * scale) / 2;
+    }
+
+    applyTransform();
+  }
+
+  function zoomAt(nextScale, cx, cy) {
+    nextScale = Math.max(minScale, Math.min(maxScale, nextScale));
+    const wx = (cx - offsetX) / scale;
+    const wy = (cy - offsetY) / scale;
+
+    scale = nextScale;
+    offsetX = cx - wx * scale;
+    offsetY = cy - wy * scale;
+    applyTransform();
+  }
+
+  viewport.addEventListener('wheel', event => {
+    event.preventDefault();
+    const rectV = viewport.getBoundingClientRect();
+    const cx = event.clientX - rectV.left;
+    const cy = event.clientY - rectV.top;
+    const factor = event.deltaY < 0 ? 1.12 : 0.89;
+    zoomAt(scale * factor, cx, cy);
+  }, { passive: false });
+
+  viewport.addEventListener('pointerdown', event => {
+    viewport.setPointerCapture(event.pointerId);
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (activePointers.size === 1) {
+      dragging = true;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      viewport.classList.add('dragging');
+    } else if (activePointers.size === 2) {
+      const pts = [...activePointers.values()];
+      pinchStartDistance = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      pinchStartScale = scale;
+      dragging = false;
+    }
   });
 
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(180, 160), waterMat);
-  water.rotation.x = -Math.PI / 2;
-  water.position.set(10, -0.25, 20);
-  scene.add(water);
+  viewport.addEventListener('pointermove', event => {
+    if (!activePointers.has(event.pointerId)) return;
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
-  const base = [
-    [-60,-48],[-25,-52],[5,-51],[30,-47],[50,-37],[57,-23],[55,-9],[47,0],[39,6],[32,12],
-    [29,20],[34,27],[44,31],[51,38],[50,46],[43,54],[32,59],[22,56],[15,50],[10,45],[3,43],
-    [-5,45],[-16,51],[-29,54],[-41,51],[-51,43],[-57,31],[-61,15],[-62,-5],[-62,-27]
-  ];
-  prism(base, -0.15, 1.05, C.cliff);
+    if (activePointers.size === 2) {
+      const pts = [...activePointers.values()];
+      const distance = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      const rectV = viewport.getBoundingClientRect();
+      const cx = (pts[0].x + pts[1].x) / 2 - rectV.left;
+      const cy = (pts[0].y + pts[1].y) / 2 - rectV.top;
 
-  const low = [
-    [-57,-45],[-27,-49],[3,-48],[27,-44],[46,-35],[52,-22],[50,-10],[42,-1],[35,5],[28,12],
-    [26,20],[31,27],[41,31],[47,37],[46,43],[40,49],[32,53],[23,51],[17,46],[11,42],[3,40],
-    [-5,42],[-17,48],[-29,50],[-40,47],[-49,40],[-54,29],[-57,14],[-58,-4],[-58,-24]
-  ];
-  prism(low, 1.0, 1.75, C.grassLow);
+      if (pinchStartDistance > 0) {
+        zoomAt(pinchStartScale * (distance / pinchStartDistance), cx, cy);
+      }
+      return;
+    }
 
-  const mid = [
-    [-55,-42],[-30,-45],[-5,-45],[18,-42],[33,-35],[37,-25],[34,-16],[26,-10],[17,-4],[11,4],
-    [8,14],[2,20],[-8,24],[-18,29],[-31,30],[-43,26],[-51,17],[-54,4]
-  ];
-  prism(mid, 1.73, 4.15, C.grassMid);
+    if (!dragging) return;
+    offsetX += event.clientX - lastX;
+    offsetY += event.clientY - lastY;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    applyTransform();
+  });
 
-  const high = [
-    [-54,-41],[-29,-44],[-3,-43],[20,-39],[30,-32],[31,-24],[25,-17],[15,-14],[4,-15],
-    [-9,-17],[-22,-15],[-35,-13],[-46,-18],[-52,-28]
-  ];
-  prism(high, 4.12, 7.0, C.grassHigh);
+  function releasePointer(event) {
+    activePointers.delete(event.pointerId);
 
-  const beach = [
-    [31,-8],[40,-7],[48,-2],[53,6],[54,15],[51,23],[47,28],[43,31],[37,29],[32,24],
-    [30,17],[28,10],[28,2]
-  ];
-  prism(beach, 0.75, 1.35, C.sand);
-
-  const cape = [
-    [28,34],[36,34],[44,38],[50,45],[51,53],[46,61],[38,66],[28,64],[20,59],[17,52],[20,44]
-  ];
-  prism(cape, 0.3, 1.3, C.cliffLight);
-  prism([[23,38],[32,37],[41,41],[46,47],[46,54],[41,59],[33,62],[26,59],[22,54],[21,46]], 1.28, 1.72, C.grassLow);
-
-  railTrack(-35.2);
-  ribbon([[-61,-31],[-49,-31],[-38,-30],[-26,-29],[-14,-29],[0,-30],[17,-32],[28,-34]], 4.8, 7.1, C.road);
-  ribbon([[-40,-26],[-36,-19],[-31,-12],[-25,-6],[-19,-1]], 2.3, 4.3, C.road);
-  ribbon([[-22,-4],[-12,-6],[-3,-5],[6,-1],[13,5],[17,12]], 2.7, 4.3, C.road);
-  ribbon([[-28,7],[-18,10],[-8,13],[2,14],[11,13],[19,10]], 2.6, 4.3, C.road);
-  ribbon([[-13,22],[-6,24],[2,25],[9,23],[15,20]], 2.2, 1.9, C.road);
-
-  stairs(-33, -17, 4.2, 8.5, 8, 4.1, 2.6);
-  stairs(6, 1, 4.2, 8.5, 8, 4.1, 2.6);
-  stairs(15, 17, 4.0, 7.5, 7, 1.7, 2.3);
-
-  building({ x:-38, z:-27, w:10.5, d:6.4, h:4.4, body:C.station, roofColor:C.blue, level:7.0 });
-  box(4.7, 0.45, 0.65, 0x7d6a57, -51, 9.5, -28.5, 0.06);
-  box(0.3, 3.0, 0.3, 0x695b4c, -53.1, 8.1, -28.5);
-  building({ x:-8, z:-27, w:6.2, d:5.2, h:3.6, body:C.cottage, roofColor:C.blue, rot:-0.08, level:7.0 });
-  building({ x:4, z:-26, w:6.4, d:5.2, h:3.6, body:C.cottage, roofColor:C.red, rot:0.1, level:7.0 });
-
-  building({ x:-36, z:-8, w:10.5, d:7.0, h:5.0, body:C.inn, roofColor:C.blue });
-  building({ x:-22, z:-7, w:6.3, d:5.4, h:3.8, body:C.dessert, roofColor:C.red });
-  building({ x:-10, z:-5, w:7.2, d:5.8, h:4.0, body:C.general, roofColor:C.green });
-  building({ x:-34, z:8, w:9.2, d:6.8, h:4.3, body:C.cafe, roofColor:C.blue });
-  building({ x:-20, z:10, w:8.8, d:6.4, h:4.3, body:C.seafood, roofColor:C.blue });
-  building({ x:-7, z:12, w:7.0, d:5.7, h:3.7, body:C.rental, roofColor:C.blue });
-
-  cylinder(9.2, 9.2, 0.32, C.plaza, 4, 4.35, 9, 48);
-  cylinder(3.0, 3.6, 0.6, C.stone, 4, 4.72, 9, 40);
-  cylinder(2.15, 2.15, 0.34, 0x87c3cf, 4, 5.15, 9, 40);
-  cylinder(0.45, 0.6, 2.2, C.stone, 4, 6.3, 9, 20);
-
-  ribbon([[-43,23],[-33,25],[-22,26],[-12,27],[-2,28],[8,28],[17,29],[25,31]], 3.0, 1.88, C.wood);
-  ribbon([[25,31],[30,34],[34,38]], 2.7, 1.88, C.wood);
-
-  ribbon([[27,-2],[31,4],[34,10],[35,17],[34,23]], 1.8, 1.47, C.road);
-  cylinder(2.3, 2.6, 0.16, 0x74c9d7, 38, 1.48, 8, 28);
-  cylinder(1.6, 1.9, 0.15, 0x74c9d7, 43, 1.48, 15, 26);
-  cylinder(1.15, 1.4, 0.13, 0x74c9d7, 36, 1.48, 20, 24);
-
-  ribbon([[27,23],[34,24],[41,24],[48,23]], 3.0, 1.72, C.wood);
-  box(8.0, 0.35, 5.0, C.wood, 51, 1.72, 23, 0.03);
-  building({ x:45, z:18, w:6.2, d:4.6, h:3.2, body:C.station, roofColor:C.blue, rot:0.03, level:1.75 });
-  box(5.0, 0.75, 1.8, 0xe9e6da, 49, 0.75, 28, -0.12);
-  box(3.8, 0.65, 1.5, 0xe9e6da, 55, 0.72, 20, 0.08);
-
-  ribbon([[34,38],[33,43],[31,48],[30,53]], 2.2, 1.85, C.road);
-  cylinder(1.8, 2.35, 9.2, C.lighthouse, 34, 6.3, 52, 24);
-  cylinder(2.1, 2.1, 0.8, C.red, 34, 11.2, 52, 24);
-  cylinder(1.3, 1.3, 1.25, 0x8fc1cc, 34, 12.25, 52, 20);
-  const top = new THREE.Mesh(new THREE.ConeGeometry(1.95, 1.6, 24), mat(C.red));
-  top.position.set(34, 13.65, 52);
-  top.castShadow = true;
-  scene.add(top);
-
-  const trees = [
-    [-52,-18,1.2,4.15],[-47,-13,1.0,4.15],[-45,-2,1.1,4.15],[-44,8,1.2,4.15],[-40,17,1.0,4.15],[-31,18,0.9,4.15],
-    [-18,-16,0.9,7.0],[-3,-17,1.0,7.0],[11,-18,1.0,7.0],[20,-15,1.1,7.0],[24,-8,1.0,4.15],
-    [20,2,0.9,4.15],[22,10,1.0,4.15],[18,20,0.95,1.75],[11,24,0.8,1.75],[-3,25,0.8,1.75],
-    [44,-2,0.8,1.35],[49,5,0.9,1.35],[47,29,0.9,1.75],[43,34,0.8,1.75],[27,44,0.8,1.72],[41,57,0.9,1.72]
-  ];
-  for (const [x,z,s,level] of trees) treeMass(x,z,s,level);
-
-  for (let i = 0; i < 8; i++) {
-    box(0.18, 1.1, 0.18, 0x7a624f, 22 + i * 2.1, 2.35, 34 + i * 0.45);
-    if (i < 7) box(2.2, 0.16, 0.16, 0x8a6d54, 23 + i * 2.1, 2.55, 34.2 + i * 0.45, 0.2);
+    if (activePointers.size === 1) {
+      const point = [...activePointers.values()][0];
+      dragging = true;
+      lastX = point.x;
+      lastY = point.y;
+    } else {
+      dragging = false;
+      viewport.classList.remove('dragging');
+    }
   }
 
-  const islandMat = mat(0x769b7c);
-  for (const [x,z,s] of [[-28,78,1.0],[8,81,0.85],[45,76,1.1]]) {
-    const island = new THREE.Mesh(new THREE.ConeGeometry(5.5 * s, 3.3 * s, 7), islandMat);
-    island.position.set(x, 1.2, z);
-    island.scale.y = 0.6;
-    scene.add(island);
-  }
+  viewport.addEventListener('pointerup', releasePointer);
+  viewport.addEventListener('pointercancel', releasePointer);
+
+  controls.addEventListener('click', event => {
+    const button = event.target.closest('button');
+    if (!button) return;
+
+    const action = button.dataset.action;
+
+    if (action === 'fit') {
+      fitWholeMap();
+      return;
+    }
+
+    const rectV = viewport.getBoundingClientRect();
+    const cx = rectV.width / 2;
+    const cy = rectV.height / 2;
+    zoomAt(scale * (action === 'in' ? 1.2 : 0.84), cx, cy);
+  });
+
+  let resizeTimer = null;
 
   function resize() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    const aspect = w / h;
-    camera.left = -frustum * aspect / 2;
-    camera.right = frustum * aspect / 2;
-    camera.top = frustum / 2;
-    camera.bottom = -frustum / 2;
-    camera.zoom = aspect < 0.75 ? 0.57 : aspect < 1 ? 0.72 : 0.92;
-    camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      focusTown();
+    }, 40);
   }
 
   window.addEventListener('resize', resize);
-  resize();
+  requestAnimationFrame(focusTown);
 
-  const clock = new THREE.Clock();
-  function animate() {
-    requestAnimationFrame(animate);
-    waterUniforms.uTime.value = clock.getElapsedTime();
-    controls.update();
-    renderer.render(scene, camera);
-  }
-  animate();
-
-  return { scene, camera, renderer, controls };
+  return {
+    canvas,
+    viewport,
+    fitWholeMap,
+    focusTown
+  };
 }
