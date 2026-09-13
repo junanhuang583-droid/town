@@ -1,60 +1,62 @@
 export const TILE = 16;
 
 export const PALETTE = {
-  outline: '#2d2a29',
-  shadow: '#25343a',
-  water0: '#2a6f92',
-  water1: '#347f9f',
-  water2: '#4b96b1',
-  waterHi: '#78b8c7',
-  grass0: '#5c8355',
-  grass1: '#6f965f',
-  grass2: '#83a96b',
-  grassHi: '#9cbb7a',
-  dirt0: '#856e52',
-  dirt1: '#a08762',
-  dirt2: '#b89b70',
-  stone0: '#77756f',
-  stone1: '#9b978c',
-  stone2: '#bdb5a5',
-  sand0: '#c8a86b',
-  sand1: '#dec286',
-  sand2: '#efd8a1',
-  cliff0: '#574b41',
-  cliff1: '#6d5a49',
-  cliff2: '#87705a',
-  cliffHi: '#a18b6c',
-  wood0: '#6d4932',
-  wood1: '#875a3b',
-  wood2: '#a46d47',
-  rail: '#31383c',
-  tie: '#604938',
-  wallCream: '#cdbb91',
-  wallBlue: '#95aaa6',
-  wallRose: '#c49184',
-  wallGreen: '#a3ae7e',
-  wallLilac: '#b39aae',
-  wallTan: '#c0ad86',
-  roofRed: '#7d463d',
-  roofBlue: '#435d70',
-  roofGreen: '#4e694f',
-  roofPurple: '#624e65',
-  roofBrown: '#624a37',
-  trim: '#e4d9b9',
-  glass: '#8fc2c7',
-  glassHi: '#c9e1d9',
-  flowerPink: '#d58da0',
-  flowerYellow: '#dfc263',
-  flowerPurple: '#9d7aac',
-  treeDark: '#31533e',
-  treeMid: '#47724a',
-  treeLight: '#68945b',
-  pineDark: '#29493a',
-  pineMid: '#3b6250',
-  lamp: '#f0d27d'
+  outline: '#32282b',
+  outline2: '#46343a',
+  shadow: '#29403f',
+  water0: '#2d78a3',
+  water1: '#3f8db3',
+  water2: '#5aa3c0',
+  waterHi: '#8fcbd3',
+  grass0: '#60934e',
+  grass1: '#73a85a',
+  grass2: '#8cbd67',
+  grassHi: '#b4cf78',
+  dirt0: '#8b6845',
+  dirt1: '#a98055',
+  dirt2: '#c19b69',
+  stone0: '#77736e',
+  stone1: '#a19a8d',
+  stone2: '#c5b9a6',
+  sand0: '#c9a461',
+  sand1: '#dfbe78',
+  sand2: '#f1d493',
+  cliff0: '#59463a',
+  cliff1: '#755b45',
+  cliff2: '#957455',
+  cliffHi: '#b08d67',
+  wood0: '#69452f',
+  wood1: '#8a5b39',
+  wood2: '#ac7447',
+  rail: '#34383d',
+  tie: '#644934',
+  wallCream: '#d7c493',
+  wallBlue: '#9eb7ad',
+  wallRose: '#c99582',
+  wallGreen: '#a9bb7d',
+  wallLilac: '#b7a0b1',
+  wallTan: '#c6af81',
+  roofRed: '#8b493f',
+  roofBlue: '#45687c',
+  roofGreen: '#4f704f',
+  roofPurple: '#6c506a',
+  roofBrown: '#6b4d36',
+  trim: '#eadcb4',
+  glass: '#8fc7c8',
+  glassHi: '#d6eee4',
+  flowerPink: '#df8da3',
+  flowerYellow: '#e3c55f',
+  flowerPurple: '#a27db5',
+  treeDark: '#2f5b3e',
+  treeMid: '#477b49',
+  treeLight: '#70a957',
+  pineDark: '#264a39',
+  pineMid: '#3c6850',
+  lamp: '#f3d37a',
+  white: '#f3ead0'
 };
 
-function canvasSprite(w, h, painter) {
+function sprite(w, h, painter) {
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
@@ -64,7 +66,7 @@ function canvasSprite(w, h, painter) {
   return canvas;
 }
 
-function r(ctx, x, y, w, h, color) {
+function px(ctx, x, y, w, h, color) {
   ctx.fillStyle = color;
   ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
 }
@@ -75,448 +77,757 @@ function hash(a, b, c = 0) {
   return ((n ^ (n >>> 16)) >>> 0) / 4294967295;
 }
 
-function tileBase(color, accent, seed = 0, density = 4) {
-  return canvasSprite(TILE, TILE, (ctx) => {
-    r(ctx, 0, 0, TILE, TILE, color);
-    for (let i = 0; i < density; i++) {
-      const x = 2 + Math.floor(hash(seed, i, 1) * 12);
-      const y = 2 + Math.floor(hash(seed, i, 2) * 12);
-      r(ctx, x, y, 2, 2, accent);
-    }
-  });
-}
+function grassTile(seed = 0, tone = 'normal') {
+  const base = tone === 'high' ? PALETTE.grass2 : tone === 'low' ? PALETTE.grass0 : PALETTE.grass1;
+  const hi = tone === 'high' ? PALETTE.grassHi : PALETTE.grass2;
+  const dark = tone === 'high' ? PALETTE.grass1 : PALETTE.grass0;
 
-function grassTile(seed = 0, high = false, low = false) {
-  const base = high ? PALETTE.grass2 : low ? PALETTE.grass0 : PALETTE.grass1;
-  const accent = high ? PALETTE.grassHi : PALETTE.grass2;
-  return canvasSprite(TILE, TILE, (ctx) => {
-    r(ctx, 0, 0, 16, 16, base);
-    for (let i = 0; i < 5; i++) {
-      const x = 1 + Math.floor(hash(seed, i, 3) * 13);
-      const y = 3 + Math.floor(hash(seed, i, 4) * 11);
+  return sprite(16, 16, ctx => {
+    px(ctx, 0, 0, 16, 16, base);
+
+    for (let i = 0; i < 6; i++) {
+      const x = 1 + Math.floor(hash(seed, i, 10) * 13);
+      const y = 3 + Math.floor(hash(seed, i, 11) * 11);
+      const col = i % 3 === 0 ? hi : dark;
+
       if (i % 2 === 0) {
-        r(ctx, x, y, 1, 3, accent);
-        r(ctx, x + 1, y + 1, 1, 2, accent);
+        px(ctx, x, y, 1, 3, col);
+        px(ctx, x + 1, y + 1, 1, 2, col);
       } else {
-        r(ctx, x, y, 2, 1, accent);
+        px(ctx, x, y, 2, 1, col);
       }
     }
-    if (seed % 7 === 0) {
-      r(ctx, 10, 4, 1, 1, '#b7c77c');
-      r(ctx, 11, 5, 1, 1, '#b7c77c');
+
+    if (seed % 4 === 0) {
+      px(ctx, 11, 4, 1, 1, '#c6d481');
+      px(ctx, 12, 5, 1, 1, '#c6d481');
     }
   });
 }
 
 function waterTile(seed = 0) {
-  return canvasSprite(TILE, TILE, (ctx) => {
-    r(ctx, 0, 0, 16, 16, seed % 3 === 0 ? PALETTE.water0 : PALETTE.water1);
-    const y1 = 4 + (seed % 5);
-    r(ctx, 1, y1, 7, 1, PALETTE.water2);
-    r(ctx, 9, y1 + 4, 5, 1, PALETTE.water2);
-    if (seed % 4 === 0) r(ctx, 3, 13, 4, 1, PALETTE.waterHi);
-  });
-}
+  return sprite(16, 16, ctx => {
+    const base = seed % 3 === 0 ? PALETTE.water0 : PALETTE.water1;
+    px(ctx, 0, 0, 16, 16, base);
 
-function dirtTile(seed = 0) {
-  return canvasSprite(TILE, TILE, (ctx) => {
-    r(ctx, 0, 0, 16, 16, PALETTE.dirt1);
-    r(ctx, 0, 0, 16, 2, PALETTE.dirt2);
-    r(ctx, 0, 14, 16, 2, PALETTE.dirt0);
-    for (let i = 0; i < 4; i++) {
-      const x = 2 + Math.floor(hash(seed, i, 7) * 11);
-      const y = 3 + Math.floor(hash(seed, i, 8) * 9);
-      r(ctx, x, y, 2, 1, i % 2 ? PALETTE.dirt0 : PALETTE.dirt2);
+    const y = 3 + (seed % 5);
+    px(ctx, 1, y, 7, 1, PALETTE.water2);
+    px(ctx, 10, y + 4, 5, 1, PALETTE.water2);
+
+    if (seed % 2 === 0) {
+      px(ctx, 4, 13, 5, 1, PALETTE.waterHi);
+      px(ctx, 6, 12, 3, 1, PALETTE.water2);
     }
   });
 }
 
 function sandTile(seed = 0) {
-  return canvasSprite(TILE, TILE, (ctx) => {
-    r(ctx, 0, 0, 16, 16, PALETTE.sand1);
-    for (let i = 0; i < 4; i++) {
-      const x = 2 + Math.floor(hash(seed, i, 9) * 11);
-      const y = 2 + Math.floor(hash(seed, i, 10) * 11);
-      r(ctx, x, y, 1, 1, i % 2 ? PALETTE.sand0 : PALETTE.sand2);
+  return sprite(16, 16, ctx => {
+    px(ctx, 0, 0, 16, 16, PALETTE.sand1);
+
+    for (let i = 0; i < 5; i++) {
+      const x = 2 + Math.floor(hash(seed, i, 20) * 11);
+      const y = 2 + Math.floor(hash(seed, i, 21) * 11);
+      px(ctx, x, y, 1, 1, i % 2 ? PALETTE.sand0 : PALETTE.sand2);
     }
-    if (seed % 5 === 0) {
-      r(ctx, 3, 11, 4, 1, PALETTE.sand2);
-      r(ctx, 5, 12, 3, 1, PALETTE.sand2);
+
+    if (seed % 4 === 0) {
+      px(ctx, 3, 11, 5, 1, PALETTE.sand2);
+      px(ctx, 5, 12, 3, 1, PALETTE.sand2);
     }
   });
 }
 
-function stoneTile(seed = 0) {
-  return canvasSprite(TILE, TILE, (ctx) => {
-    r(ctx, 0, 0, 16, 16, PALETTE.stone1);
-    r(ctx, 0, 0, 16, 1, PALETTE.stone2);
-    r(ctx, 0, 15, 16, 1, PALETTE.stone0);
-    const sx = seed % 2 ? 2 : 7;
-    r(ctx, sx, 4, 5, 1, PALETTE.stone0);
-    r(ctx, 10, 10, 4, 1, PALETTE.stone2);
+function terrainTransition(kind, mask) {
+  const isSand = kind === 'sand';
+  const light = isSand ? PALETTE.sand2 : PALETTE.grassHi;
+  const dark = isSand ? PALETTE.sand0 : PALETTE.grass0;
+
+  return sprite(16, 16, ctx => {
+    const n = mask & 1;
+    const e = mask & 2;
+    const s = mask & 4;
+    const w = mask & 8;
+
+    if (n) {
+      px(ctx, 0, 0, 16, 2, dark);
+      px(ctx, 2, 2, 12, 1, light);
+    }
+    if (s) {
+      px(ctx, 0, 14, 16, 2, dark);
+      px(ctx, 3, 13, 10, 1, light);
+    }
+    if (w) {
+      px(ctx, 0, 0, 2, 16, dark);
+      px(ctx, 2, 3, 1, 10, light);
+    }
+    if (e) {
+      px(ctx, 14, 0, 2, 16, dark);
+      px(ctx, 13, 2, 1, 11, light);
+    }
   });
 }
 
-function boardTile(seed = 0) {
-  return canvasSprite(TILE, TILE, (ctx) => {
-    r(ctx, 0, 0, 16, 16, PALETTE.wood1);
-    r(ctx, 0, 0, 16, 2, PALETTE.wood2);
-    r(ctx, 0, 14, 16, 2, PALETTE.wood0);
-    r(ctx, 3, 0, 1, 16, PALETTE.wood0);
-    r(ctx, 11, 0, 1, 16, PALETTE.wood0);
-    if (seed % 2 === 0) r(ctx, 7, 7, 2, 1, PALETTE.wood2);
+function pathTile(kind, mask, seed = 0) {
+  const cfg = {
+    dirt: [PALETTE.dirt0, PALETTE.dirt1, PALETTE.dirt2],
+    stone: [PALETTE.stone0, PALETTE.stone1, PALETTE.stone2],
+    board: [PALETTE.wood0, PALETTE.wood1, PALETTE.wood2]
+  }[kind];
+
+  const [dark, base, hi] = cfg;
+
+  return sprite(16, 16, ctx => {
+    const n = mask & 1;
+    const e = mask & 2;
+    const s = mask & 4;
+    const w = mask & 8;
+
+    const organic = kind === 'dirt';
+    const inset = organic ? 3 : 2;
+
+    px(ctx, inset, inset, 16 - inset * 2, 16 - inset * 2, base);
+
+    if (n) px(ctx, inset, 0, 16 - inset * 2, 8, base);
+    if (s) px(ctx, inset, 8, 16 - inset * 2, 8, base);
+    if (w) px(ctx, 0, inset, 8, 16 - inset * 2, base);
+    if (e) px(ctx, 8, inset, 8, 16 - inset * 2, base);
+
+    if (n && w) px(ctx, 0, 0, 8, 8, base);
+    if (n && e) px(ctx, 8, 0, 8, 8, base);
+    if (s && w) px(ctx, 0, 8, 8, 8, base);
+    if (s && e) px(ctx, 8, 8, 8, 8, base);
+
+    if (!n) {
+      px(ctx, inset, inset, 16 - inset * 2, 1, hi);
+      if (organic) px(ctx, inset + 2, inset - 1, 4, 1, hi);
+    }
+    if (!s) px(ctx, inset, 15 - inset, 16 - inset * 2, 1, dark);
+    if (!w) px(ctx, inset, inset + 2, 1, 10 - inset, dark);
+    if (!e) px(ctx, 15 - inset, inset + 1, 1, 10 - inset, dark);
+
+    if (kind === 'dirt') {
+      if (seed % 2 === 0) px(ctx, 7, 7, 2, 1, dark);
+      if (seed % 3 === 0) px(ctx, 11, 11, 2, 1, hi);
+    }
+
+    if (kind === 'stone') {
+      px(ctx, 3, 6, 5, 1, dark);
+      px(ctx, 10, 10, 4, 1, hi);
+      px(ctx, 8, 2, 1, 5, dark);
+    }
+
+    if (kind === 'board') {
+      for (let x = 2; x < 16; x += 5) px(ctx, x, 0, 1, 16, dark);
+      px(ctx, 0, 3, 16, 1, hi);
+      px(ctx, 0, 12, 16, 1, dark);
+    }
   });
 }
 
 function cliffFace(seed = 0) {
-  return canvasSprite(TILE, TILE, (ctx) => {
-    r(ctx, 0, 0, 16, 16, PALETTE.cliff1);
-    r(ctx, 0, 0, 16, 3, PALETTE.cliffHi);
-    r(ctx, 0, 13, 16, 3, PALETTE.cliff0);
-    const x = 2 + (seed % 5);
-    r(ctx, x, 5, 2, 5, PALETTE.cliff2);
-    r(ctx, x + 5, 8, 1, 4, PALETTE.cliff0);
-    r(ctx, 12, 4, 2, 3, PALETTE.cliff2);
+  return sprite(16, 18, ctx => {
+    px(ctx, 0, 0, 16, 18, PALETTE.cliff1);
+    px(ctx, 0, 0, 16, 3, PALETTE.cliffHi);
+    px(ctx, 0, 15, 16, 3, PALETTE.cliff0);
+
+    const a = 2 + seed % 4;
+    px(ctx, a, 4, 2, 6, PALETTE.cliff2);
+    px(ctx, a + 6, 8, 1, 5, PALETTE.cliff0);
+    px(ctx, 12, 5, 2, 4, PALETTE.cliff2);
+    px(ctx, 4, 12, 6, 1, PALETTE.cliffHi);
   });
 }
 
-function shoreFoam(seed = 0) {
-  return canvasSprite(TILE, TILE, (ctx) => {
-    r(ctx, 0, 0, 16, 16, 'rgba(0,0,0,0)');
-    const y = 5 + (seed % 4);
-    r(ctx, 1, y, 7, 2, PALETTE.waterHi);
-    r(ctx, 8, y + 2, 5, 1, '#b9d9dd');
-    r(ctx, 4, y + 5, 8, 1, PALETTE.waterHi);
+function foamTile(mask, seed = 0) {
+  return sprite(16, 16, ctx => {
+    const n = mask & 1;
+    const e = mask & 2;
+    const s = mask & 4;
+    const w = mask & 8;
+    const c = seed % 2 ? PALETTE.waterHi : '#b9dfe0';
+
+    if (n) {
+      px(ctx, 1, 1, 7, 1, c);
+      px(ctx, 9, 2, 5, 1, c);
+    }
+    if (s) {
+      px(ctx, 2, 14, 8, 1, c);
+      px(ctx, 11, 13, 3, 1, c);
+    }
+    if (w) {
+      px(ctx, 1, 3, 1, 7, c);
+      px(ctx, 2, 11, 1, 3, c);
+    }
+    if (e) {
+      px(ctx, 14, 2, 1, 8, c);
+      px(ctx, 13, 11, 1, 3, c);
+    }
   });
 }
 
 function railTile() {
-  return canvasSprite(TILE, TILE, (ctx) => {
-    r(ctx, 0, 0, 16, 16, PALETTE.grass2);
-    r(ctx, 0, 4, 16, 2, PALETTE.rail);
-    r(ctx, 0, 10, 16, 2, PALETTE.rail);
-    r(ctx, 2, 1, 2, 14, PALETTE.tie);
-    r(ctx, 10, 1, 2, 14, PALETTE.tie);
+  return sprite(16, 16, ctx => {
+    px(ctx, 0, 0, 16, 16, PALETTE.grass2);
+    px(ctx, 0, 3, 16, 2, PALETTE.rail);
+    px(ctx, 0, 11, 16, 2, PALETTE.rail);
+    px(ctx, 2, 1, 2, 14, PALETTE.tie);
+    px(ctx, 10, 1, 2, 14, PALETTE.tie);
+    px(ctx, 0, 5, 16, 1, '#78806e');
   });
 }
 
 function stairsTile() {
-  return canvasSprite(TILE, TILE, (ctx) => {
-    r(ctx, 0, 0, 16, 16, PALETTE.cliff1);
+  return sprite(16, 16, ctx => {
+    px(ctx, 0, 0, 16, 16, PALETTE.cliff1);
     for (let y = 1; y < 16; y += 3) {
-      r(ctx, 2, y, 12, 2, PALETTE.stone2);
-      r(ctx, 2, y + 2, 12, 1, PALETTE.stone0);
+      px(ctx, 2, y, 12, 2, PALETTE.stone2);
+      px(ctx, 2, y + 2, 12, 1, PALETTE.stone0);
     }
   });
 }
 
-function roofGable(ctx, x, y, w, color, dark = PALETTE.outline) {
-  const step = 4;
-  const tiers = Math.max(4, Math.floor(w / 16));
-  for (let i = 0; i < tiers; i++) {
-    const inset = i * step;
-    r(ctx, x + inset, y + i * step, w - inset * 2, 5, dark);
-    r(ctx, x + inset + 2, y + i * step + 1, w - inset * 2 - 4, 3, color);
+function roofShingles(ctx, x, y, w, h, color, dark = PALETTE.outline) {
+  const rows = Math.max(4, Math.floor(h / 6));
+
+  for (let row = 0; row < rows; row++) {
+    const inset = row * 4;
+    const yy = y + row * 5;
+    const ww = Math.max(8, w - inset * 2);
+
+    px(ctx, x + inset, yy, ww, 6, dark);
+    px(ctx, x + inset + 2, yy + 1, ww - 4, 4, color);
+
+    for (let sx = x + inset + 6 + (row % 2) * 4; sx < x + inset + ww - 4; sx += 12) {
+      px(ctx, sx, yy + 4, 5, 1, '#ffffff18');
+    }
   }
-  r(ctx, x + 2, y + tiers * step - 1, w - 4, 4, dark);
 }
 
-function pixelWindow(ctx, x, y, wide = false) {
-  const w = wide ? 18 : 12;
-  r(ctx, x, y, w, 13, PALETTE.outline);
-  r(ctx, x + 2, y + 2, w - 4, 9, PALETTE.glass);
-  r(ctx, x + Math.floor(w / 2) - 1, y + 2, 2, 9, PALETTE.glassHi);
-  r(ctx, x + 2, y + 6, w - 4, 1, '#d5e5dd');
+function roofHip(ctx, x, y, w, h, color) {
+  const rows = Math.max(4, Math.floor(h / 5));
+
+  for (let row = 0; row < rows; row++) {
+    const inset = row * 3;
+    const yy = y + row * 4;
+    const ww = Math.max(10, w - inset * 2);
+    px(ctx, x + inset, yy, ww, 5, PALETTE.outline);
+    px(ctx, x + inset + 2, yy + 1, ww - 4, 3, color);
+  }
 }
 
-function pixelDoor(ctx, x, y, color = '#60483b') {
-  r(ctx, x, y, 14, 24, PALETTE.outline);
-  r(ctx, x + 2, y + 2, 10, 22, color);
-  r(ctx, x + 9, y + 12, 2, 2, PALETTE.lamp);
+function windowSprite(ctx, x, y, wide = false) {
+  const w = wide ? 20 : 13;
+  px(ctx, x, y, w, 14, PALETTE.outline);
+  px(ctx, x + 2, y + 2, w - 4, 10, PALETTE.glass);
+  px(ctx, x + Math.floor(w / 2) - 1, y + 2, 2, 10, PALETTE.glassHi);
+  px(ctx, x + 2, y + 7, w - 4, 1, '#dff1e7');
+  px(ctx, x - 1, y + 13, w + 2, 2, '#5d463b');
 }
 
-function awning(ctx, x, y, w, color) {
-  r(ctx, x, y, w, 9, PALETTE.outline);
-  r(ctx, x + 2, y + 2, w - 4, 5, color);
-  for (let i = 4; i < w - 4; i += 10) {
-    r(ctx, x + i, y + 2, 4, 5, PALETTE.trim);
+function doorSprite(ctx, x, y, color = '#684b3b', double = false) {
+  const w = double ? 24 : 15;
+  px(ctx, x, y, w, 27, PALETTE.outline);
+  px(ctx, x + 2, y + 2, w - 4, 25, color);
+
+  if (double) {
+    px(ctx, x + 11, y + 2, 2, 25, PALETTE.outline2);
   }
-  for (let i = 4; i < w - 4; i += 12) {
-    r(ctx, x + i, y + 7, 6, 3, color);
-  }
+
+  px(ctx, x + w - 5, y + 13, 2, 2, PALETTE.lamp);
 }
 
 function flowerBox(ctx, x, y, w, color) {
-  r(ctx, x, y + 4, w, 5, PALETTE.wood1);
-  for (let i = 2; i < w - 2; i += 6) {
-    r(ctx, x + i, y, 3, 3, color);
-    r(ctx, x + i + 1, y + 3, 1, 2, PALETTE.treeMid);
+  px(ctx, x, y + 4, w, 5, PALETTE.wood0);
+  px(ctx, x + 1, y + 4, w - 2, 2, PALETTE.wood2);
+
+  for (let i = 3; i < w - 2; i += 7) {
+    px(ctx, x + i, y, 3, 3, color);
+    px(ctx, x + i + 1, y + 3, 1, 2, PALETTE.treeMid);
   }
 }
 
-function makeBuilding({
+function awning(ctx, x, y, w, color) {
+  px(ctx, x, y, w, 11, PALETTE.outline);
+  px(ctx, x + 2, y + 2, w - 4, 6, color);
+
+  for (let i = 4; i < w - 4; i += 12) {
+    px(ctx, x + i, y + 2, 5, 6, PALETTE.trim);
+  }
+
+  for (let i = 3; i < w - 3; i += 10) {
+    px(ctx, x + i, y + 8, 6, 3, color);
+  }
+}
+
+function wallTexture(ctx, x, y, w, h, wall, kind = 'plaster') {
+  px(ctx, x, y, w, h, wall);
+
+  if (kind === 'timber') {
+    for (let yy = y + 8; yy < y + h - 4; yy += 16) {
+      px(ctx, x + 3, yy, w - 6, 2, '#7f5e45');
+    }
+    for (let xx = x + 8; xx < x + w - 6; xx += 24) {
+      px(ctx, xx, y + 3, 2, h - 6, '#7f5e45');
+    }
+  } else {
+    for (let yy = y + 7; yy < y + h - 4; yy += 12) {
+      px(ctx, x + 4 + (yy % 3), yy, 9, 1, '#ffffff16');
+    }
+  }
+}
+
+function makeHouse({
   tw = 7,
   th = 6,
   wall = PALETTE.wallCream,
   roof = PALETTE.roofRed,
-  awningColor = null,
-  signColor = null,
-  chimney = false,
-  porch = false,
+  roofType = 'gable',
+  wallKind = 'plaster',
+  chimney = true,
+  porch = true,
   flowerColor = null,
-  upperWindow = false,
-  roofAccent = null
+  dormer = false
 } = {}) {
-  const w = tw * TILE;
-  const h = (th + 2) * TILE;
-  return canvasSprite(w, h, (ctx) => {
-    const wallTop = 44;
-    const baseY = h - 10;
+  const w = tw * 16;
+  const h = (th + 3) * 16;
 
-    r(ctx, 8, baseY - 4, w - 8, 7, 'rgba(28,39,41,.3)');
-    r(ctx, 5, wallTop, w - 10, h - wallTop - 10, PALETTE.outline);
-    r(ctx, 8, wallTop + 3, w - 16, h - wallTop - 16, wall);
+  return sprite(w, h, ctx => {
+    const wallTop = 58;
+    const groundY = h - 11;
 
-    roofGable(ctx, 0, 7, w, roof);
-    if (roofAccent) {
-      r(ctx, 18, 24, w - 36, 3, roofAccent);
-      r(ctx, 24, 30, w - 48, 2, roofAccent);
-    }
+    px(ctx, 10, groundY - 2, w - 12, 8, '#20373555');
+    px(ctx, 7, wallTop, w - 14, h - wallTop - 12, PALETTE.outline);
+    wallTexture(ctx, 10, wallTop + 3, w - 20, h - wallTop - 18, wall, wallKind);
+
+    if (roofType === 'hip') roofHip(ctx, 1, 12, w - 2, 46, roof);
+    else roofShingles(ctx, 0, 10, w, 48, roof);
 
     if (chimney) {
-      r(ctx, w - 28, 8, 12, 30, PALETTE.outline);
-      r(ctx, w - 25, 11, 6, 24, '#725144');
-      r(ctx, w - 30, 7, 16, 5, PALETTE.outline);
+      px(ctx, w - 30, 10, 13, 34, PALETTE.outline);
+      px(ctx, w - 27, 13, 7, 28, '#805544');
+      px(ctx, w - 32, 8, 17, 6, PALETTE.outline);
+      px(ctx, w - 29, 9, 11, 3, '#a36d54');
     }
 
-    if (upperWindow) pixelWindow(ctx, Math.floor(w / 2) - 9, 36, true);
-
-    pixelWindow(ctx, 16, baseY - 42, tw >= 8);
-    pixelWindow(ctx, w - (tw >= 8 ? 36 : 28), baseY - 42, tw >= 8);
-
-    pixelDoor(ctx, Math.floor(w / 2) - 7, baseY - 28);
-
-    if (awningColor) awning(ctx, 12, baseY - 54, w - 24, awningColor);
-
-    if (porch) {
-      r(ctx, 9, baseY - 1, w - 18, 5, PALETTE.wood0);
-      r(ctx, 12, baseY - 4, w - 24, 4, PALETTE.wood2);
-      r(ctx, 13, baseY - 9, 3, 9, PALETTE.wood1);
-      r(ctx, w - 16, baseY - 9, 3, 9, PALETTE.wood1);
+    if (dormer) {
+      px(ctx, Math.floor(w / 2) - 15, 29, 30, 23, PALETTE.outline);
+      px(ctx, Math.floor(w / 2) - 12, 32, 24, 18, wall);
+      roofShingles(ctx, Math.floor(w / 2) - 18, 20, 36, 16, roof);
+      windowSprite(ctx, Math.floor(w / 2) - 7, 35, false);
     }
+
+    windowSprite(ctx, 15, groundY - 44, tw >= 8);
+    windowSprite(ctx, w - (tw >= 8 ? 38 : 30), groundY - 44, tw >= 8);
+    doorSprite(ctx, Math.floor(w / 2) - 7, groundY - 30);
 
     if (flowerColor) {
-      flowerBox(ctx, 13, baseY - 27, 30, flowerColor);
-      flowerBox(ctx, w - 43, baseY - 27, 30, flowerColor);
+      flowerBox(ctx, 13, groundY - 26, 28, flowerColor);
+      flowerBox(ctx, w - 41, groundY - 26, 28, flowerColor);
     }
 
-    if (signColor) {
-      r(ctx, w - 17, 52, 14, 18, PALETTE.outline);
-      r(ctx, w - 14, 55, 8, 10, signColor);
-      r(ctx, w - 12, 57, 4, 2, PALETTE.trim);
+    if (porch) {
+      px(ctx, 9, groundY - 1, w - 18, 6, PALETTE.wood0);
+      px(ctx, 12, groundY - 4, w - 24, 4, PALETTE.wood2);
+      px(ctx, 14, groundY - 10, 3, 10, PALETTE.wood1);
+      px(ctx, w - 17, groundY - 10, 3, 10, PALETTE.wood1);
     }
+  });
+}
+
+function makeStore({
+  tw = 8,
+  th = 7,
+  wall = PALETTE.wallCream,
+  roof = PALETTE.roofRed,
+  awningColor = '#c87968',
+  signColor = PALETTE.flowerYellow,
+  roofType = 'gable',
+  upper = true,
+  sideWing = false
+} = {}) {
+  const w = tw * 16;
+  const h = (th + 3) * 16;
+
+  return sprite(w, h, ctx => {
+    const wallTop = 55;
+    const groundY = h - 11;
+
+    px(ctx, 10, groundY - 2, w - 12, 8, '#20373555');
+    px(ctx, 6, wallTop, w - 12, h - wallTop - 12, PALETTE.outline);
+    wallTexture(ctx, 9, wallTop + 3, w - 18, h - wallTop - 18, wall, 'plaster');
+
+    if (roofType === 'hip') roofHip(ctx, 0, 10, w, 45, roof);
+    else roofShingles(ctx, 0, 8, w, 48, roof);
+
+    if (upper) {
+      windowSprite(ctx, 22, 61, true);
+      windowSprite(ctx, w - 42, 61, true);
+    }
+
+    awning(ctx, 12, groundY - 61, w - 24, awningColor);
+    windowSprite(ctx, 16, groundY - 44, true);
+    windowSprite(ctx, w - 36, groundY - 44, true);
+    doorSprite(ctx, Math.floor(w / 2) - 7, groundY - 30);
+
+    px(ctx, w - 19, 52, 15, 20, PALETTE.outline);
+    px(ctx, w - 16, 55, 9, 12, signColor);
+    px(ctx, w - 14, 58, 5, 2, PALETTE.trim);
+
+    px(ctx, 9, groundY - 1, w - 18, 5, PALETTE.wood0);
+    px(ctx, 12, groundY - 4, w - 24, 3, PALETTE.wood2);
+
+    if (sideWing) {
+      px(ctx, 2, groundY - 54, 18, 42, PALETTE.outline);
+      px(ctx, 5, groundY - 51, 12, 36, wall);
+      px(ctx, 1, groundY - 58, 20, 8, roof);
+    }
+  });
+}
+
+function makeInn() {
+  const w = 10 * 16;
+  const h = 11 * 16;
+
+  return sprite(w, h, ctx => {
+    const groundY = h - 11;
+
+    px(ctx, 10, groundY - 2, w - 12, 8, '#20373555');
+    px(ctx, 8, 66, w - 16, h - 78, PALETTE.outline);
+    wallTexture(ctx, 12, 70, w - 24, h - 86, PALETTE.wallBlue, 'timber');
+
+    roofShingles(ctx, 0, 8, w, 58, PALETTE.roofBlue);
+
+    // Twin dormers and central sign create a real landmark silhouette.
+    for (const dx of [32, w - 58]) {
+      px(ctx, dx, 35, 26, 26, PALETTE.outline);
+      px(ctx, dx + 3, 38, 20, 20, PALETTE.wallBlue);
+      roofShingles(ctx, dx - 4, 28, 34, 14, PALETTE.roofBlue);
+      windowSprite(ctx, dx + 7, 42, false);
+    }
+
+    px(ctx, w / 2 - 22, 62, 44, 15, PALETTE.outline);
+    px(ctx, w / 2 - 19, 65, 38, 9, '#b98553');
+    px(ctx, w / 2 - 9, 67, 18, 3, PALETTE.trim);
+
+    windowSprite(ctx, 20, groundY - 47, true);
+    windowSprite(ctx, w - 40, groundY - 47, true);
+    doorSprite(ctx, w / 2 - 12, groundY - 31, '#5e4638', true);
+
+    flowerBox(ctx, 18, groundY - 28, 32, PALETTE.flowerPink);
+    flowerBox(ctx, w - 50, groundY - 28, 32, PALETTE.flowerYellow);
+
+    px(ctx, 8, groundY - 1, w - 16, 6, PALETTE.wood0);
+    px(ctx, 12, groundY - 4, w - 24, 4, PALETTE.wood2);
   });
 }
 
 function makeStation() {
-  const w = 12 * TILE;
-  const h = 9 * TILE;
-  return canvasSprite(w, h, (ctx) => {
-    r(ctx, 10, h - 14, w - 12, 7, 'rgba(28,39,41,.3)');
-    r(ctx, 8, 54, w - 16, h - 66, PALETTE.outline);
-    r(ctx, 12, 58, w - 24, h - 74, PALETTE.wallBlue);
-    roofGable(ctx, 0, 8, w, PALETTE.roofBlue);
+  const w = 12 * 16;
+  const h = 10 * 16;
 
-    r(ctx, 24, 51, w - 48, 9, PALETTE.outline);
-    r(ctx, 27, 53, w - 54, 5, '#668995');
-    r(ctx, Math.floor(w / 2) - 12, 44, 24, 18, PALETTE.outline);
-    r(ctx, Math.floor(w / 2) - 9, 47, 18, 12, PALETTE.glass);
+  return sprite(w, h, ctx => {
+    const groundY = h - 10;
 
-    pixelDoor(ctx, Math.floor(w / 2) - 7, h - 46);
-    pixelWindow(ctx, 25, h - 55, true);
-    pixelWindow(ctx, w - 43, h - 55, true);
+    px(ctx, 9, groundY - 3, w - 10, 8, '#20373555');
+    px(ctx, 8, 65, w - 16, h - 77, PALETTE.outline);
+    wallTexture(ctx, 12, 69, w - 24, h - 85, PALETTE.wallBlue, 'timber');
 
-    r(ctx, 18, h - 16, w - 36, 5, PALETTE.stone0);
-    r(ctx, 24, h - 11, w - 48, 3, PALETTE.stone2);
+    roofHip(ctx, 0, 8, w, 56, PALETTE.roofBlue);
 
-    r(ctx, w - 24, 60, 16, 12, PALETTE.outline);
-    r(ctx, w - 21, 63, 10, 6, '#d49c55');
-    r(ctx, w - 18, 66, 4, 2, PALETTE.trim);
+    px(ctx, 24, 60, w - 48, 12, PALETTE.outline);
+    px(ctx, 28, 63, w - 56, 6, '#6c9099');
+
+    windowSprite(ctx, 24, groundY - 55, true);
+    windowSprite(ctx, w - 44, groundY - 55, true);
+    doorSprite(ctx, w / 2 - 12, groundY - 32, '#5f493b', true);
+
+    // Clock.
+    px(ctx, w / 2 - 10, 46, 20, 20, PALETTE.outline);
+    px(ctx, w / 2 - 7, 49, 14, 14, PALETTE.trim);
+    px(ctx, w / 2 - 1, 52, 2, 7, PALETTE.outline2);
+    px(ctx, w / 2 - 1, 58, 6, 2, PALETTE.outline2);
+
+    px(ctx, 18, groundY - 2, w - 36, 6, PALETTE.stone0);
+    px(ctx, 24, groundY + 4, w - 48, 3, PALETTE.stone2);
+
+    px(ctx, w - 25, 70, 18, 14, PALETTE.outline);
+    px(ctx, w - 22, 73, 12, 8, '#d29a54');
+  });
+}
+
+function makeRental() {
+  const w = 7 * 16;
+  const h = 8 * 16;
+
+  return sprite(w, h, ctx => {
+    const groundY = h - 10;
+    px(ctx, 7, groundY - 2, w - 9, 7, '#20373555');
+    px(ctx, 8, 52, w - 16, h - 64, PALETTE.outline);
+    wallTexture(ctx, 11, 55, w - 22, h - 70, PALETTE.wallTan, 'timber');
+    roofShingles(ctx, 0, 12, w, 42, PALETTE.roofBrown);
+
+    windowSprite(ctx, 15, groundY - 43, false);
+    doorSprite(ctx, w - 34, groundY - 30);
+
+    px(ctx, 13, 61, 32, 14, PALETTE.outline);
+    px(ctx, 16, 64, 26, 8, '#599aae');
+    px(ctx, 20, 66, 18, 3, PALETTE.trim);
+
+    px(ctx, 8, groundY - 1, w - 16, 5, PALETTE.wood0);
   });
 }
 
 function makeLighthouse() {
-  return canvasSprite(64, 128, (ctx) => {
-    r(ctx, 17, 117, 34, 5, 'rgba(28,39,41,.3)');
-    r(ctx, 21, 40, 22, 78, PALETTE.outline);
-    r(ctx, 24, 43, 16, 72, '#e2dcc9');
-    r(ctx, 24, 64, 16, 12, '#a45148');
-    r(ctx, 20, 32, 24, 14, PALETTE.outline);
-    r(ctx, 23, 35, 18, 8, '#75a8ad');
-    r(ctx, 14, 27, 36, 8, PALETTE.outline);
-    r(ctx, 18, 29, 28, 4, PALETTE.roofRed);
-    r(ctx, 22, 20, 20, 9, PALETTE.roofRed);
-    r(ctx, 26, 15, 12, 7, PALETTE.roofRed);
-    r(ctx, 29, 12, 6, 4, PALETTE.outline);
-    pixelDoor(ctx, 25, 91, '#6a5141');
-    pixelWindow(ctx, 26, 52, false);
+  return sprite(72, 144, ctx => {
+    px(ctx, 16, 132, 40, 6, '#20373555');
+    px(ctx, 21, 45, 30, 90, PALETTE.outline);
+
+    for (let y = 48; y < 132; y += 18) {
+      px(ctx, 25, y, 22, 16, '#e9e1c9');
+    }
+
+    px(ctx, 25, 72, 22, 13, '#ae5147');
+    px(ctx, 25, 108, 22, 12, '#ae5147');
+
+    px(ctx, 18, 34, 36, 18, PALETTE.outline);
+    px(ctx, 22, 38, 28, 10, '#79afb4');
+    px(ctx, 14, 29, 44, 8, PALETTE.outline);
+    px(ctx, 19, 31, 34, 4, PALETTE.roofRed);
+
+    px(ctx, 22, 20, 28, 11, PALETTE.roofRed);
+    px(ctx, 27, 14, 18, 8, PALETTE.roofRed);
+    px(ctx, 32, 10, 8, 5, PALETTE.outline);
+
+    doorSprite(ctx, 29, 105);
+    windowSprite(ctx, 30, 58, false);
+    windowSprite(ctx, 30, 90, false);
   });
 }
 
 function makeTree() {
-  return canvasSprite(40, 56, (ctx) => {
-    r(ctx, 15, 35, 10, 17, '#604636');
-    r(ctx, 5, 20, 30, 24, PALETTE.outline);
-    r(ctx, 7, 18, 26, 22, PALETTE.treeDark);
-    r(ctx, 4, 25, 15, 15, PALETTE.treeMid);
-    r(ctx, 18, 13, 17, 21, PALETTE.treeMid);
-    r(ctx, 9, 8, 20, 18, PALETTE.treeLight);
-    r(ctx, 13, 9, 7, 5, '#7ca168');
-    r(ctx, 26, 20, 5, 5, '#769c65');
+  return sprite(48, 64, ctx => {
+    px(ctx, 18, 40, 12, 19, '#654734');
+    px(ctx, 8, 23, 34, 28, PALETTE.outline);
+    px(ctx, 10, 20, 30, 27, PALETTE.treeDark);
+    px(ctx, 4, 28, 21, 19, PALETTE.treeMid);
+    px(ctx, 24, 18, 20, 24, PALETTE.treeMid);
+    px(ctx, 10, 11, 26, 25, PALETTE.treeLight);
+    px(ctx, 14, 10, 10, 7, '#89b967');
+    px(ctx, 31, 23, 6, 6, '#7bad61');
+    px(ctx, 9, 34, 6, 5, '#5c914e');
   });
 }
 
 function makePine() {
-  return canvasSprite(38, 60, (ctx) => {
-    r(ctx, 16, 39, 6, 17, '#5b4334');
-    r(ctx, 3, 35, 32, 10, PALETTE.pineDark);
-    r(ctx, 6, 26, 26, 12, PALETTE.pineMid);
-    r(ctx, 9, 17, 20, 12, PALETTE.pineDark);
-    r(ctx, 12, 9, 14, 11, PALETTE.pineMid);
-    r(ctx, 16, 4, 6, 8, PALETTE.pineDark);
+  return sprite(44, 68, ctx => {
+    px(ctx, 18, 45, 8, 18, '#604634');
+    px(ctx, 3, 39, 38, 12, PALETTE.outline);
+    px(ctx, 6, 35, 32, 13, PALETTE.pineDark);
+    px(ctx, 9, 26, 26, 14, PALETTE.pineMid);
+    px(ctx, 12, 17, 20, 13, PALETTE.pineDark);
+    px(ctx, 15, 8, 14, 13, PALETTE.pineMid);
+    px(ctx, 20, 3, 5, 8, PALETTE.pineDark);
   });
 }
 
 function makeBush() {
-  return canvasSprite(24, 20, (ctx) => {
-    r(ctx, 3, 8, 18, 10, PALETTE.outline);
-    r(ctx, 5, 6, 14, 10, PALETTE.treeDark);
-    r(ctx, 2, 10, 10, 7, PALETTE.treeMid);
-    r(ctx, 12, 9, 10, 8, PALETTE.treeLight);
-    r(ctx, 8, 6, 5, 4, '#7ca168');
+  return sprite(28, 22, ctx => {
+    px(ctx, 3, 10, 22, 10, PALETTE.outline);
+    px(ctx, 6, 7, 17, 11, PALETTE.treeDark);
+    px(ctx, 2, 12, 12, 7, PALETTE.treeMid);
+    px(ctx, 14, 10, 12, 8, PALETTE.treeLight);
+    px(ctx, 9, 6, 7, 5, '#82ae63');
   });
 }
 
 function makeFlower(color) {
-  return canvasSprite(16, 16, (ctx) => {
-    r(ctx, 3, 10, 10, 3, PALETTE.treeDark);
-    r(ctx, 5, 6, 3, 3, color);
-    r(ctx, 10, 8, 3, 3, color);
-    r(ctx, 2, 8, 3, 3, color);
-    r(ctx, 7, 11, 2, 3, PALETTE.treeMid);
+  return sprite(16, 16, ctx => {
+    px(ctx, 2, 10, 12, 3, PALETTE.treeDark);
+    px(ctx, 4, 6, 3, 3, color);
+    px(ctx, 10, 7, 3, 3, color);
+    px(ctx, 7, 4, 3, 3, color);
+    px(ctx, 7, 10, 2, 4, PALETTE.treeMid);
   });
 }
 
 function makeRock() {
-  return canvasSprite(18, 14, (ctx) => {
-    r(ctx, 2, 6, 14, 7, PALETTE.outline);
-    r(ctx, 4, 4, 10, 7, PALETTE.stone1);
-    r(ctx, 6, 3, 7, 4, PALETTE.stone2);
-    r(ctx, 4, 10, 9, 2, PALETTE.stone0);
+  return sprite(20, 16, ctx => {
+    px(ctx, 2, 7, 16, 7, PALETTE.outline);
+    px(ctx, 5, 4, 11, 8, PALETTE.stone1);
+    px(ctx, 7, 3, 8, 4, PALETTE.stone2);
+    px(ctx, 5, 11, 10, 2, PALETTE.stone0);
   });
 }
 
 function makeBench() {
-  return canvasSprite(32, 22, (ctx) => {
-    r(ctx, 3, 4, 26, 5, PALETTE.outline);
-    r(ctx, 5, 5, 22, 3, PALETTE.wood2);
-    r(ctx, 4, 11, 24, 5, PALETTE.outline);
-    r(ctx, 6, 12, 20, 3, PALETTE.wood1);
-    r(ctx, 7, 15, 3, 6, PALETTE.outline);
-    r(ctx, 22, 15, 3, 6, PALETTE.outline);
+  return sprite(34, 24, ctx => {
+    px(ctx, 3, 4, 28, 6, PALETTE.outline);
+    px(ctx, 5, 5, 24, 4, PALETTE.wood2);
+    px(ctx, 4, 12, 26, 5, PALETTE.outline);
+    px(ctx, 6, 13, 22, 3, PALETTE.wood1);
+    px(ctx, 8, 16, 3, 7, PALETTE.outline);
+    px(ctx, 23, 16, 3, 7, PALETTE.outline);
   });
 }
 
 function makeLamp() {
-  return canvasSprite(18, 36, (ctx) => {
-    r(ctx, 8, 10, 3, 24, PALETTE.outline);
-    r(ctx, 5, 7, 9, 9, PALETTE.outline);
-    r(ctx, 7, 9, 5, 5, PALETTE.lamp);
-    r(ctx, 6, 31, 7, 3, PALETTE.outline);
-    r(ctx, 4, 34, 11, 2, PALETTE.outline);
+  return sprite(20, 40, ctx => {
+    px(ctx, 9, 11, 3, 26, PALETTE.outline);
+    px(ctx, 5, 6, 11, 11, PALETTE.outline);
+    px(ctx, 7, 8, 7, 6, PALETTE.lamp);
+    px(ctx, 6, 35, 9, 3, PALETTE.outline);
+    px(ctx, 3, 38, 15, 2, PALETTE.outline);
   });
 }
 
 function makeBarrel() {
-  return canvasSprite(16, 20, (ctx) => {
-    r(ctx, 3, 3, 10, 15, PALETTE.outline);
-    r(ctx, 5, 2, 6, 16, PALETTE.wood1);
-    r(ctx, 4, 5, 8, 2, PALETTE.wood2);
-    r(ctx, 4, 12, 8, 2, PALETTE.wood0);
+  return sprite(18, 22, ctx => {
+    px(ctx, 3, 4, 12, 16, PALETTE.outline);
+    px(ctx, 5, 3, 8, 17, PALETTE.wood1);
+    px(ctx, 4, 7, 10, 2, PALETTE.wood2);
+    px(ctx, 4, 14, 10, 2, PALETTE.wood0);
   });
 }
 
 function makeCrate() {
-  return canvasSprite(18, 18, (ctx) => {
-    r(ctx, 2, 2, 14, 14, PALETTE.outline);
-    r(ctx, 4, 4, 10, 10, PALETTE.wood1);
-    r(ctx, 5, 5, 8, 2, PALETTE.wood2);
-    r(ctx, 5, 11, 8, 2, PALETTE.wood0);
-    r(ctx, 8, 5, 2, 8, PALETTE.outline);
+  return sprite(20, 20, ctx => {
+    px(ctx, 2, 2, 16, 16, PALETTE.outline);
+    px(ctx, 4, 4, 12, 12, PALETTE.wood1);
+    px(ctx, 5, 5, 10, 2, PALETTE.wood2);
+    px(ctx, 5, 13, 10, 2, PALETTE.wood0);
+    px(ctx, 9, 5, 2, 10, PALETTE.outline);
   });
 }
 
 function makeParasol() {
-  return canvasSprite(34, 38, (ctx) => {
-    r(ctx, 16, 17, 3, 19, '#6d513e');
-    r(ctx, 3, 9, 28, 8, PALETTE.outline);
-    r(ctx, 6, 6, 22, 9, '#c45f62');
-    r(ctx, 11, 6, 5, 9, PALETTE.trim);
-    r(ctx, 21, 6, 5, 9, PALETTE.trim);
-    r(ctx, 9, 35, 17, 2, PALETTE.outline);
+  return sprite(38, 42, ctx => {
+    px(ctx, 18, 18, 3, 22, '#714e39');
+    px(ctx, 3, 10, 32, 9, PALETTE.outline);
+    px(ctx, 6, 7, 26, 10, '#cd5f64');
+    px(ctx, 11, 7, 5, 10, PALETTE.trim);
+    px(ctx, 22, 7, 5, 10, PALETTE.trim);
+    px(ctx, 9, 39, 21, 2, PALETTE.outline);
   });
 }
 
 function makeFountain() {
-  return canvasSprite(56, 52, (ctx) => {
-    r(ctx, 6, 31, 44, 14, PALETTE.outline);
-    r(ctx, 9, 28, 38, 14, PALETTE.stone1);
-    r(ctx, 13, 29, 30, 9, '#71aeb7');
-    r(ctx, 18, 30, 20, 6, '#9bc9c8');
-    r(ctx, 25, 13, 6, 20, PALETTE.outline);
-    r(ctx, 27, 10, 2, 18, PALETTE.stone2);
-    r(ctx, 24, 7, 8, 6, PALETTE.outline);
-    r(ctx, 26, 8, 4, 4, '#a9d3d2');
+  return sprite(60, 58, ctx => {
+    px(ctx, 6, 36, 48, 15, PALETTE.outline);
+    px(ctx, 10, 32, 40, 15, PALETTE.stone1);
+    px(ctx, 14, 33, 32, 10, '#6faeb8');
+    px(ctx, 19, 34, 22, 7, '#9ed0cc');
+    px(ctx, 27, 13, 6, 22, PALETTE.outline);
+    px(ctx, 29, 10, 2, 20, PALETTE.stone2);
+    px(ctx, 25, 7, 10, 7, PALETTE.outline);
+    px(ctx, 28, 8, 4, 5, '#b7dcda');
   });
 }
 
-function makeSign(color = '#d79c5a') {
-  return canvasSprite(20, 30, (ctx) => {
-    r(ctx, 8, 12, 4, 16, PALETTE.outline);
-    r(ctx, 4, 4, 12, 12, PALETTE.outline);
-    r(ctx, 6, 6, 8, 8, color);
-    r(ctx, 8, 8, 4, 2, PALETTE.trim);
+function makeSign(color = '#d69b55') {
+  return sprite(22, 32, ctx => {
+    px(ctx, 9, 13, 4, 17, PALETTE.outline);
+    px(ctx, 4, 4, 14, 13, PALETTE.outline);
+    px(ctx, 7, 7, 8, 7, color);
+    px(ctx, 9, 9, 4, 2, PALETTE.trim);
+  });
+}
+
+function makeFence() {
+  return sprite(32, 18, ctx => {
+    px(ctx, 2, 2, 4, 16, PALETTE.outline);
+    px(ctx, 26, 2, 4, 16, PALETTE.outline);
+    px(ctx, 4, 6, 24, 5, PALETTE.outline);
+    px(ctx, 5, 7, 22, 3, PALETTE.wood2);
+    px(ctx, 4, 12, 24, 4, PALETTE.outline);
+    px(ctx, 5, 13, 22, 2, PALETTE.wood1);
+  });
+}
+
+function makeTallGrass() {
+  return sprite(20, 18, ctx => {
+    px(ctx, 4, 10, 2, 7, PALETTE.treeDark);
+    px(ctx, 7, 6, 2, 11, PALETTE.treeLight);
+    px(ctx, 10, 9, 2, 8, PALETTE.treeMid);
+    px(ctx, 13, 5, 2, 12, PALETTE.treeLight);
+    px(ctx, 16, 10, 1, 7, PALETTE.treeDark);
+  });
+}
+
+function makeMailbox() {
+  return sprite(20, 30, ctx => {
+    px(ctx, 9, 13, 3, 15, '#664b38');
+    px(ctx, 4, 5, 13, 12, PALETTE.outline);
+    px(ctx, 6, 7, 9, 8, '#8c6b4d');
+    px(ctx, 14, 8, 5, 3, '#b7504e');
   });
 }
 
 export function createPixelAssets() {
-  const tiles = {
+  const terrain = {
     water: [0,1,2,3].map(i => waterTile(i)),
-    grass: [0,1,2,3].map(i => grassTile(i)),
-    grassHigh: [0,1,2,3].map(i => grassTile(i, true, false)),
-    grassLow: [0,1,2,3].map(i => grassTile(i, false, true)),
-    dirt: [0,1,2,3].map(i => dirtTile(i)),
+    grass: [0,1,2,3].map(i => grassTile(i, 'normal')),
+    grassHigh: [0,1,2,3].map(i => grassTile(i, 'high')),
+    grassLow: [0,1,2,3].map(i => grassTile(i, 'low')),
     sand: [0,1,2,3].map(i => sandTile(i)),
-    stone: [0,1,2,3].map(i => stoneTile(i)),
-    board: [0,1].map(i => boardTile(i)),
+    grassEdge: Array.from({ length: 16 }, (_, mask) => terrainTransition('grass', mask)),
+    sandEdge: Array.from({ length: 16 }, (_, mask) => terrainTransition('sand', mask)),
     cliff: [0,1,2,3].map(i => cliffFace(i)),
-    shore: [0,1,2,3].map(i => shoreFoam(i)),
+    foam: Array.from({ length: 16 }, (_, mask) =>
+      [0,1].map(seed => foamTile(mask, seed))
+    ),
     rail: railTile(),
     stairs: stairsTile()
   };
 
+  const paths = {
+    dirt: Array.from({ length: 16 }, (_, mask) =>
+      [0,1,2].map(seed => pathTile('dirt', mask, seed))
+    ),
+    stone: Array.from({ length: 16 }, (_, mask) =>
+      [0,1].map(seed => pathTile('stone', mask, seed))
+    ),
+    board: Array.from({ length: 16 }, (_, mask) =>
+      [0,1].map(seed => pathTile('board', mask, seed))
+    )
+  };
+
   const buildings = {
     station: makeStation(),
-    homeRed: makeBuilding({ tw: 7, th: 6, wall: PALETTE.wallCream, roof: PALETTE.roofRed, chimney: true, porch: true, flowerColor: PALETTE.flowerPink }),
-    homeGreen: makeBuilding({ tw: 7, th: 6, wall: PALETTE.wallGreen, roof: PALETTE.roofGreen, chimney: true, porch: true, flowerColor: PALETTE.flowerYellow }),
-    homeBlue: makeBuilding({ tw: 8, th: 6, wall: PALETTE.wallBlue, roof: PALETTE.roofBlue, porch: true, upperWindow: true }),
-    inn: makeBuilding({ tw: 10, th: 7, wall: PALETTE.wallBlue, roof: PALETTE.roofBlue, chimney: true, porch: true, flowerColor: PALETTE.flowerPink, upperWindow: true, roofAccent: '#58778b' }),
-    sweets: makeBuilding({ tw: 7, th: 6, wall: PALETTE.wallCream, roof: PALETTE.roofRed, awningColor: '#c87968', signColor: PALETTE.flowerYellow, porch: true }),
-    general: makeBuilding({ tw: 8, th: 6, wall: PALETTE.wallGreen, roof: PALETTE.roofGreen, awningColor: '#6f8b5f', signColor: '#d6bb66', porch: true }),
-    cafe: makeBuilding({ tw: 10, th: 7, wall: PALETTE.wallRose, roof: PALETTE.roofRed, awningColor: '#c37b72', chimney: true, porch: true, flowerColor: PALETTE.flowerYellow, upperWindow: true }),
-    seafood: makeBuilding({ tw: 9, th: 7, wall: PALETTE.wallLilac, roof: PALETTE.roofPurple, awningColor: '#8b6d8a', signColor: '#67a9bc', porch: true }),
-    rental: makeBuilding({ tw: 8, th: 6, wall: PALETTE.wallTan, roof: PALETTE.roofBrown, signColor: '#69aabb', porch: true }),
-    lighthouseHouse: makeBuilding({ tw: 6, th: 5, wall: PALETTE.wallCream, roof: PALETTE.roofRed, porch: true }),
+    homeRed: makeHouse({
+      tw: 7, th: 6, wall: PALETTE.wallCream, roof: PALETTE.roofRed,
+      roofType: 'gable', flowerColor: PALETTE.flowerPink, dormer: true
+    }),
+    homeGreen: makeHouse({
+      tw: 7, th: 6, wall: PALETTE.wallGreen, roof: PALETTE.roofGreen,
+      roofType: 'hip', flowerColor: PALETTE.flowerYellow
+    }),
+    homeBlue: makeHouse({
+      tw: 8, th: 6, wall: PALETTE.wallBlue, roof: PALETTE.roofBlue,
+      roofType: 'gable', dormer: true
+    }),
+    inn: makeInn(),
+    sweets: makeStore({
+      tw: 7, th: 6, wall: PALETTE.wallCream, roof: PALETTE.roofRed,
+      awningColor: '#d67a6c', signColor: PALETTE.flowerYellow, upper: false
+    }),
+    general: makeStore({
+      tw: 8, th: 7, wall: PALETTE.wallGreen, roof: PALETTE.roofGreen,
+      awningColor: '#71935f', signColor: '#d8bb5e', roofType: 'hip'
+    }),
+    cafe: makeStore({
+      tw: 10, th: 8, wall: PALETTE.wallRose, roof: PALETTE.roofRed,
+      awningColor: '#ca7c72', signColor: '#e6c05b', sideWing: true
+    }),
+    seafood: makeStore({
+      tw: 9, th: 8, wall: PALETTE.wallLilac, roof: PALETTE.roofPurple,
+      awningColor: '#8d6c8d', signColor: '#6eb5c3'
+    }),
+    rental: makeRental(),
+    lighthouseHouse: makeHouse({
+      tw: 6, th: 5, wall: PALETTE.wallCream, roof: PALETTE.roofRed,
+      roofType: 'hip', chimney: false
+    }),
     lighthouse: makeLighthouse()
   };
 
@@ -534,8 +845,11 @@ export function createPixelAssets() {
     crate: makeCrate(),
     parasol: makeParasol(),
     fountain: makeFountain(),
-    sign: makeSign()
+    sign: makeSign(),
+    fence: makeFence(),
+    tallGrass: makeTallGrass(),
+    mailbox: makeMailbox()
   };
 
-  return { tiles, buildings, decor };
+  return { terrain, paths, buildings, decor };
 }
