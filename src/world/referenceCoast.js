@@ -11,25 +11,24 @@ export const REFERENCE_WORLD = Object.freeze({
 // This file intentionally contains terrain only. Buildings and wooden piers are
 // deferred until the island base passes visual acceptance.
 export const MAIN_COAST_POLYGON = Object.freeze([
-  [8, 21], [15, 14], [28, 9], [45, 7], [65, 7], [84, 8],
-  [103, 10], [120, 12], [135, 17], [146, 25], [152, 36], [155, 49],
-  [154, 62], [151, 71], [147, 79],
+  [8, 22], [16, 15], [29, 10], [47, 8], [66, 8], [86, 9],
+  [105, 11], [122, 14], [137, 20], [147, 29], [153, 41], [155, 54],
+  [154, 67], [151, 78],
 
-  // East / lighthouse headland: compact, rocky and connected to the town.
-  [150, 87], [148, 97], [143, 105], [136, 111], [129, 113], [123, 111],
-  [119, 106], [117, 101],
+  // East / lighthouse headland.
+  [153, 88], [152, 98], [148, 106], [141, 112], [134, 115], [128, 114],
+  [123, 110], [120, 105],
 
-  // Inner shoreline of the sheltered bay. The five-view set shows a broad
-  // horseshoe bay, not the narrow/deep cut used by the rejected first pass.
-  [113, 95], [108, 90], [102, 86], [95, 83], [88, 81], [81, 81],
-  [74, 83], [67, 86], [61, 90], [56, 95], [52, 101], [49, 108],
-  [46, 114],
+  // Rebuilt inner bay from the five views:
+  // much wider, substantially shallower, and less U-shaped than the rejected pass.
+  [116, 101], [110, 97], [103, 94], [95, 92], [86, 91], [77, 92],
+  [69, 94], [62, 97], [56, 101], [51, 105], [47, 109],
 
-  // Green west tongue and small sandy cove visible in the top-down/rear views.
-  [43, 119], [47, 123], [48, 128], [45, 132], [40, 133], [35, 130],
-  [31, 126], [28, 128], [25, 136], [21, 144], [15, 150], [9, 149],
-  [5, 142], [3, 132], [3, 119], [5, 105], [8, 92], [10, 80],
-  [10, 68], [9, 57], [7, 46], [6, 34]
+  // West green tongue / small cove.
+  [43, 113], [40, 118], [41, 123], [45, 126], [47, 130], [45, 134],
+  [40, 136], [35, 134], [31, 131], [28, 132], [26, 138], [22, 145],
+  [16, 150], [10, 149], [6, 143], [4, 134], [4, 122], [6, 109],
+  [8, 96], [10, 84], [10, 71], [9, 58], [7, 46], [6, 34]
 ]);
 
 export const BREAKWATER_PATH = Object.freeze([
@@ -85,14 +84,14 @@ function isLighthouseHeadland(x, z) {
 }
 
 function isMainBayBeach(x, z, coastDistance) {
-  if (coastDistance > 7.5) return false;
-  if (x < 60 || x > 105 || z < 78 || z > 115) return false;
+  if (coastDistance > 6.5) return false;
+  if (x < 59 || x > 106 || z < 87 || z > 111) return false;
   return !isLighthouseHeadland(x, z);
 }
 
 function isBaySeawall(x, z, coastDistance) {
   if (coastDistance > 4.25) return false;
-  return x >= 43 && x <= 118 && z >= 78 && z <= 118 && !isLighthouseHeadland(x, z);
+  return x >= 43 && x <= 118 && z >= 86 && z <= 114 && !isLighthouseHeadland(x, z);
 }
 
 function isWestCoveBeach(x, z, coastDistance) {
@@ -103,22 +102,18 @@ function isWestCoveBeach(x, z, coastDistance) {
 function islandHeight(x, z, coastDistance, surface) {
   if (surface === 'sand') return 2;
 
-  // Closed, low coastal shelf rising gradually inland. The town-facing shelf is
-  // deliberately broad/flat so later streets and dense buildings can sit on it.
   let height = 3 + Math.min(5, Math.floor(coastDistance / 5.25));
 
-  // Main town shelf around the horseshoe bay.
+  // Broad, buildable town shelf behind the shallow bay.
   if (x >= 43 && x <= 126 && z >= 28 && z <= 88) {
     height = Math.max(height, 6);
     if (z < 62 && coastDistance > 10) height = Math.max(height, 7);
   }
 
-  // Wooded west/back side is gently higher, matching the rear and top views.
   if (x <= 48 && z >= 55 && z <= 126) {
     height = Math.max(height, 5 + Math.min(3, Math.floor(coastDistance / 9)));
   }
 
-  // The lighthouse sits on a compact rock platform, not a tall cliff island.
   if (isLighthouseHeadland(x, z)) {
     height = Math.max(4, Math.min(6, height));
   }
@@ -135,7 +130,6 @@ function addBreakwater(columns) {
       const key = `${x},${z}`;
       if (columns.has(key)) continue;
 
-      // Slightly irregular stepped rocks, still deterministic and editable.
       const jitter = ((x * 17 + z * 31) % 5) === 0 ? 1 : 0;
       columns.set(key, { x, z, height: 2 + jitter, surface: 'rock' });
     }
@@ -146,6 +140,8 @@ export function createReferenceColumns() {
   const columns = new Map();
   const { width, depth } = REFERENCE_WORLD;
 
+  // Every horizontal cell inside the polygon is present. Heights are solid columns
+  // from the foundation floor to the surface; there are no intentional cavities.
   for (let z = 0; z < depth; z++) {
     for (let x = 0; x < width; x++) {
       const px = x + 0.5;
@@ -172,7 +168,6 @@ export function createReferenceColumns() {
     }
   }
 
-  // The rock breakwater is part of the base silhouette in every useful view.
   addBreakwater(columns);
   return columns;
 }

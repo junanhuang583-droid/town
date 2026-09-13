@@ -7,6 +7,7 @@ const SURFACE_COLORS = {
 };
 const ROCK_CORE = new THREE.Color('#707a80');
 const ROCK_CORE_DARK = new THREE.Color('#616b72');
+const FOUNDATION_Y = -6;
 
 function pushQuad(buffers, a, b, c, d, normal, color) {
   const base = buffers.positions.length / 3;
@@ -19,7 +20,7 @@ function pushQuad(buffers, a, b, c, d, normal, color) {
 }
 
 function coreColor(y) {
-  return y <= 1 ? ROCK_CORE_DARK : ROCK_CORE;
+  return y <= -2 ? ROCK_CORE_DARK : ROCK_CORE;
 }
 
 export function buildTerrainMesh(world) {
@@ -35,7 +36,6 @@ export function buildTerrainMesh(world) {
     const z1 = z0 + 1;
     const topColor = SURFACE_COLORS[surface] || SURFACE_COLORS.grass;
 
-    // Surface cap. Grass/sand are only the top layer; the island body is rock.
     pushQuad(b, [x0, height, z0], [x0, height, z1], [x1, height, z1], [x1, height, z0], [0, 1, 0], topColor);
 
     const sides = [
@@ -47,18 +47,18 @@ export function buildTerrainMesh(world) {
 
     for (const side of sides) {
       const neighbor = world.get(x + side.dx, z + side.dz);
-      const neighborHeight = neighbor?.height || 0;
+      const neighborHeight = neighbor ? neighbor.height : FOUNDATION_Y;
       for (let y = neighborHeight; y < height; y++) {
         const q = side.quad(y);
         pushQuad(b, q[0], q[1], q[2], q[3], side.normal, coreColor(y));
       }
     }
 
-    // Close the underside. The previous mesh was an open shell; with transparent
-    // water and oblique cameras that made the island read as hollow/leaking.
+    // Continuous sealed underside well below sea level.
     pushQuad(
       b,
-      [x0, 0, z1], [x0, 0, z0], [x1, 0, z0], [x1, 0, z1],
+      [x0, FOUNDATION_Y, z1], [x0, FOUNDATION_Y, z0],
+      [x1, FOUNDATION_Y, z0], [x1, FOUNDATION_Y, z1],
       [0, -1, 0], ROCK_CORE_DARK
     );
   }
