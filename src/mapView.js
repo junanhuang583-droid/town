@@ -6,6 +6,7 @@ export function mountMap(app) {
 
   const map = buildTownMap();
   const assets = createPixelAssets();
+
   const WORLD_W = map.width * TILE;
   const WORLD_H = map.height * TILE;
 
@@ -16,7 +17,7 @@ export function mountMap(app) {
   canvas.className = 'pixel-map';
   canvas.width = WORLD_W;
   canvas.height = WORLD_H;
-  canvas.setAttribute('aria-label', 'Pixel Town v0.2 海滨小镇地图');
+  canvas.setAttribute('aria-label', 'Pixel Town v0.2 海滨小镇重构版');
   viewport.appendChild(canvas);
   app.appendChild(viewport);
 
@@ -24,7 +25,7 @@ export function mountMap(app) {
   hud.className = 'pixel-hud';
   hud.innerHTML =
     '<b>Pixel Town v0.2</b>' +
-    '<span>海滨小镇 · 美术升级版</span>';
+    '<span>海滨小镇 · 16px Tile 重构版</span>';
   app.appendChild(hud);
 
   const controls = document.createElement('div');
@@ -44,78 +45,160 @@ export function mountMap(app) {
     return ((n ^ (n >>> 16)) >>> 0) / 4294967295;
   }
 
-  function tileVariant(list, x, y, seed = 0) {
-    if (!Array.isArray(list)) return list;
-    const index = Math.floor(hash(x, y, seed) * list.length) % list.length;
-    return list[index];
+  function inBounds(x, y) {
+    return x >= 0 && y >= 0 && x < map.width && y < map.height;
   }
 
-  function tileAsset(type, x, y) {
-    switch (type) {
-      case 'water':
-        return tileVariant(assets.tiles.water, x, y, 1);
-      case 'grass':
-        return tileVariant(assets.tiles.grass, x, y, 2);
-      case 'grassHigh':
-        return tileVariant(assets.tiles.grassHigh, x, y, 3);
-      case 'grassLow':
-        return tileVariant(assets.tiles.grassLow, x, y, 4);
-      case 'dirt':
-        return tileVariant(assets.tiles.dirt, x, y, 5);
-      case 'sand':
-        return tileVariant(assets.tiles.sand, x, y, 6);
-      case 'stone':
-        return tileVariant(assets.tiles.stone, x, y, 7);
-      case 'board':
-        return tileVariant(assets.tiles.board, x, y, 8);
-      case 'rail':
-        return assets.tiles.rail;
-      case 'stairs':
-        return assets.tiles.stairs;
-      default:
-        return tileVariant(assets.tiles.water, x, y, 9);
-    }
+  function terrainAt(x, y) {
+    if (!inBounds(x, y)) return 'water';
+    return map.terrain[y][x];
   }
 
-  function drawGround() {
+  function pathAt(x, y) {
+    if (!inBounds(x, y)) return null;
+    return map.paths[y][x];
+  }
+
+  function variant(list, x, y, seed = 0) {
+    const i = Math.floor(hash(x, y, seed) * list.length) % list.length;
+    return list[i];
+  }
+
+  function terrainSprite(type, x, y) {
+    if (type === 'grass') return variant(assets.terrain.grass, x, y, 1);
+    if (type === 'grassHigh') return variant(assets.terrain.grassHigh, x, y, 2);
+    if (type === 'grassLow') return variant(assets.terrain.grassLow, x, y, 3);
+    if (type === 'sand') return variant(assets.terrain.sand, x, y, 4);
+    return variant(assets.terrain.water, x, y, 5);
+  }
+
+  function sideMask(test) {
+    let mask = 0;
+    if (test(0, -1)) mask |= 1;
+    if (test(1, 0)) mask |= 2;
+    if (test(0, 1)) mask |= 4;
+    if (test(-1, 0)) mask |= 8;
+    return mask;
+  }
+
+  function drawTerrain() {
     for (let y = 0; y < map.height; y++) {
       for (let x = 0; x < map.width; x++) {
-        const tile = tileAsset(map.ground[y][x], x, y);
-        ctx.drawImage(tile, x * TILE, y * TILE);
+        const type = terrainAt(x, y);
+        ctx.drawImage(terrainSprite(type, x, y), x * TILE, y * TILE);
       }
     }
   }
 
-  function drawOverlay(item) {
-    const sprite =
-      item.type === 'cliff'
-        ? assets.tiles.cliff[item.variant % assets.tiles.cliff.length]
-        : assets.tiles.shore[item.variant % assets.tiles.shore.length];
+  function drawTerrainEdges() {
+    for (let y = 0; y < map.height; y++) {
+      for (let x = 0; x < map.width; x++) {
+        const type = terrainAt(x, y);
 
-    ctx.drawImage(sprite, item.x * TILE, item.y * TILE);
+        if (type === 'water') continue;
+
+        const waterMask = sideMask((dx, dy) =>
+          terrainAt(x + dx, y + dy) === 'water'
+        );
+
+        if (waterMask) {
+          const foamSet = assets.terrain.foam[waterMask];
+          const foam = foamSet[Math.floor(hash(x, y, 12) * foamSet.length) % foamSet.length];
+          ctx.drawImage(foam, x * TILE, y * TILE);
+        }
+
+        if (type === 'sand') {
+          const edgeMask = sideMask((dx, dy) => {
+            const neighbor = terrainAt(x + dx, y + dy);
+            return neighbor !== 'sand' && neighbor !== 'water';
+          });
+
+          if (edgeMask) {
+            ctx.drawImage(assets.terrain.sandEdge[edgeMask], x * TILE, y * TILE);
+          }
+
+          continue;
+        }
+
+        const grassFamily =
+          type === 'grass' ||
+          type === 'grassHigh' ||
+          type === 'grassLow';
+
+        if (grassFamily) {
+          const edgeMask = sideMask((dx, dy) => {
+            const neighbor = terrainAt(x + dx, y + dy);
+            return (
+              neighbor !== type &&
+              neighbor !== 'water' &&
+              neighbor !== 'sand'
+            );
+          });
+
+          if (edgeMask) {
+            ctx.drawImage(assets.terrain.grassEdge[edgeMask], x * TILE, y * TILE);
+          }
+        }
+      }
+    }
   }
 
-  function spriteFootDraw(sprite, footX, footY, scale = 1) {
+  function drawPaths() {
+    for (let y = 0; y < map.height; y++) {
+      for (let x = 0; x < map.width; x++) {
+        const type = pathAt(x, y);
+        if (!type) continue;
+
+        if (type === 'rail') {
+          ctx.drawImage(assets.terrain.rail, x * TILE, y * TILE);
+          continue;
+        }
+
+        if (type === 'stairs') {
+          ctx.drawImage(assets.terrain.stairs, x * TILE, y * TILE);
+          continue;
+        }
+
+        const mask = sideMask((dx, dy) =>
+          pathAt(x + dx, y + dy) === type
+        );
+
+        const group = assets.paths[type];
+        if (!group) continue;
+
+        const options = group[mask];
+        const sprite =
+          options[Math.floor(hash(x, y, 30) * options.length) % options.length];
+
+        ctx.drawImage(sprite, x * TILE, y * TILE);
+      }
+    }
+  }
+
+  function drawCliffs() {
+    for (const item of map.cliffs) {
+      const cliff = assets.terrain.cliff[item.variant % assets.terrain.cliff.length];
+      ctx.drawImage(cliff, item.x * TILE, item.y * TILE);
+    }
+  }
+
+  function drawSpriteAtFoot(sprite, footX, footY, scale = 1) {
     const width = Math.round(sprite.width * scale);
     const height = Math.round(sprite.height * scale);
+
     const x = Math.round(footX * TILE - width / 2);
     const y = Math.round(footY * TILE - height);
+
     ctx.drawImage(sprite, x, y, width, height);
   }
 
-  function renderWorld() {
-    ctx.clearRect(0, 0, WORLD_W, WORLD_H);
-    drawGround();
-
-    // Ground-attached cliff/foam overlays.
-    for (const item of map.overlays) drawOverlay(item);
-
-    // Sort every standing object by its ground contact Y.
+  function drawWorldObjects() {
     const drawables = [];
 
     for (const item of map.buildings) {
       const sprite = assets.buildings[item.type];
       if (!sprite) continue;
+
       drawables.push({
         sprite,
         x: item.x,
@@ -128,6 +211,7 @@ export function mountMap(app) {
     for (const item of map.objects) {
       const sprite = assets.decor[item.type];
       if (!sprite) continue;
+
       drawables.push({
         sprite,
         x: item.x,
@@ -138,20 +222,29 @@ export function mountMap(app) {
     }
 
     drawables.sort((a, b) => {
-      if (a.y !== b.y) return a.y - b.y;
+      if (Math.abs(a.y - b.y) > 0.001) return a.y - b.y;
       return a.order - b.order;
     });
 
     for (const item of drawables) {
-      spriteFootDraw(item.sprite, item.x, item.y, item.scale);
+      drawSpriteAtFoot(item.sprite, item.x, item.y, item.scale);
     }
+  }
+
+  function renderWorld() {
+    ctx.clearRect(0, 0, WORLD_W, WORLD_H);
+    drawTerrain();
+    drawTerrainEdges();
+    drawPaths();
+    drawCliffs();
+    drawWorldObjects();
   }
 
   renderWorld();
 
   let scale = 1;
   let minScale = 0.25;
-  const maxScale = 4;
+  const maxScale = 5;
   let offsetX = 0;
   let offsetY = 0;
 
@@ -173,19 +266,13 @@ export function mountMap(app) {
     if (sw <= vw) {
       offsetX = (vw - sw) / 2;
     } else {
-      offsetX = Math.min(
-        margin,
-        Math.max(vw - sw - margin, offsetX)
-      );
+      offsetX = Math.min(margin, Math.max(vw - sw - margin, offsetX));
     }
 
     if (sh <= vh) {
       offsetY = (vh - sh) / 2;
     } else {
-      offsetY = Math.min(
-        margin,
-        Math.max(vh - sh - margin, offsetY)
-      );
+      offsetY = Math.min(margin, Math.max(vh - sh - margin, offsetY));
     }
   }
 
@@ -206,10 +293,7 @@ export function mountMap(app) {
     const vw = viewport.clientWidth;
     const vh = viewport.clientHeight;
 
-    minScale = Math.min(
-      vw / WORLD_W,
-      vh / WORLD_H
-    ) * 0.94;
+    minScale = Math.min(vw / WORLD_W, vh / WORLD_H) * 0.94;
 
     scale = minScale;
     offsetX = (vw - WORLD_W * scale) / 2;
@@ -221,19 +305,15 @@ export function mountMap(app) {
     const vw = viewport.clientWidth;
     const vh = viewport.clientHeight;
 
-    minScale = Math.min(
-      vw / WORLD_W,
-      vh / WORLD_H
-    ) * 0.94;
+    minScale = Math.min(vw / WORLD_W, vh / WORLD_H) * 0.94;
 
     if (vw / vh < 0.72) {
-      // Portrait phones open slightly closer, centred on the actual town.
       scale = Math.max(
         minScale,
-        Math.min(1.12, vh / WORLD_H * 1.08)
+        Math.min(1.32, vh / WORLD_H * 1.2)
       );
 
-      const focusX = 48 * TILE;
+      const focusX = 47 * TILE;
       const focusY = 34 * TILE;
 
       offsetX = vw / 2 - focusX * scale;
@@ -241,7 +321,10 @@ export function mountMap(app) {
     } else {
       scale = Math.max(
         minScale,
-        Math.min(1.15, Math.min(vw / WORLD_W, vh / WORLD_H) * 1.1)
+        Math.min(
+          1.3,
+          Math.min(vw / WORLD_W, vh / WORLD_H) * 1.16
+        )
       );
 
       offsetX = (vw - WORLD_W * scale) / 2;
@@ -252,17 +335,14 @@ export function mountMap(app) {
   }
 
   function zoomAt(nextScale, cx, cy) {
-    nextScale = Math.max(
-      minScale,
-      Math.min(maxScale, nextScale)
-    );
+    nextScale = Math.max(minScale, Math.min(maxScale, nextScale));
 
-    const wx = (cx - offsetX) / scale;
-    const wy = (cy - offsetY) / scale;
+    const worldX = (cx - offsetX) / scale;
+    const worldY = (cy - offsetY) / scale;
 
     scale = nextScale;
-    offsetX = cx - wx * scale;
-    offsetY = cy - wy * scale;
+    offsetX = cx - worldX * scale;
+    offsetY = cy - worldY * scale;
     applyTransform();
   }
 
@@ -274,9 +354,12 @@ export function mountMap(app) {
       const rect = viewport.getBoundingClientRect();
       const cx = event.clientX - rect.left;
       const cy = event.clientY - rect.top;
-      const factor = event.deltaY < 0 ? 1.15 : 0.87;
 
-      zoomAt(scale * factor, cx, cy);
+      zoomAt(
+        scale * (event.deltaY < 0 ? 1.15 : 0.87),
+        cx,
+        cy
+      );
     },
     { passive: false }
   );
@@ -298,11 +381,11 @@ export function mountMap(app) {
     }
 
     if (activePointers.size === 2) {
-      const pts = [...activePointers.values()];
+      const points = [...activePointers.values()];
 
       pinchStartDistance = Math.hypot(
-        pts[0].x - pts[1].x,
-        pts[0].y - pts[1].y
+        points[0].x - points[1].x,
+        points[0].y - points[1].y
       );
 
       pinchStartScale = scale;
@@ -319,16 +402,22 @@ export function mountMap(app) {
     });
 
     if (activePointers.size === 2) {
-      const pts = [...activePointers.values()];
+      const points = [...activePointers.values()];
 
       const distance = Math.hypot(
-        pts[0].x - pts[1].x,
-        pts[0].y - pts[1].y
+        points[0].x - points[1].x,
+        points[0].y - points[1].y
       );
 
       const rect = viewport.getBoundingClientRect();
-      const cx = (pts[0].x + pts[1].x) / 2 - rect.left;
-      const cy = (pts[0].y + pts[1].y) / 2 - rect.top;
+
+      const cx =
+        (points[0].x + points[1].x) / 2 -
+        rect.left;
+
+      const cy =
+        (points[0].y + points[1].y) / 2 -
+        rect.top;
 
       if (pinchStartDistance > 0) {
         zoomAt(
@@ -356,6 +445,7 @@ export function mountMap(app) {
 
     if (activePointers.size === 1) {
       const point = [...activePointers.values()][0];
+
       dragging = true;
       lastX = point.x;
       lastY = point.y;
@@ -381,13 +471,11 @@ export function mountMap(app) {
     }
 
     const rect = viewport.getBoundingClientRect();
-    const cx = rect.width / 2;
-    const cy = rect.height / 2;
 
     zoomAt(
       scale * (action === 'in' ? 1.25 : 0.8),
-      cx,
-      cy
+      rect.width / 2,
+      rect.height / 2
     );
   });
 
