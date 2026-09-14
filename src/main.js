@@ -10,7 +10,7 @@ app.innerHTML = [
   '<div class="viewport" data-role="viewport"></div>',
   '<section class="panel panel-left">',
   '<strong>Town Voxel World v0.1</strong>',
-  '<span>海岛基底重构 · 五视图参考 · 无建筑</span>',
+  '<span>海岛基底重构 · 五视图参考 · 真实体素 · 无建筑</span>',
   '<span data-role="status"></span>',
   '</section>',
   '<section class="toolbar" aria-label="terrain editor">',
@@ -47,7 +47,7 @@ const fileInput = app.querySelector('[data-role="file"]');
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#bdeaf4');
-scene.fog = new THREE.Fog('#bdeaf4', 175, 390);
+scene.fog = new THREE.Fog('#bdeaf4', 260, 620);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -57,14 +57,14 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 viewport.appendChild(renderer.domElement);
 
-const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 700);
+const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 0.1, 900);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.enablePan = true;
 controls.zoomToCursor = true;
 controls.minDistance = 35;
-controls.maxDistance = 300;
+controls.maxDistance = 520;
 controls.maxPolarAngle = THREE.MathUtils.degToRad(88);
 controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
 controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
@@ -73,13 +73,13 @@ controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
 
 scene.add(new THREE.HemisphereLight(0xffffff, 0x6e8491, 2.1));
 const sun = new THREE.DirectionalLight(0xfff0d3, 2.7);
-sun.position.set(-90, 135, 70);
+sun.position.set(-90, 155, 90);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -120;
-sun.shadow.camera.right = 120;
-sun.shadow.camera.top = 120;
-sun.shadow.camera.bottom = -120;
+sun.shadow.camera.left = -130;
+sun.shadow.camera.right = 130;
+sun.shadow.camera.top = 130;
+sun.shadow.camera.bottom = -130;
 scene.add(sun);
 
 let world = BlockWorld.fromReference();
@@ -87,6 +87,8 @@ let terrainMesh = null;
 let ocean = null;
 let tool = 'raise';
 let surface = 'grass';
+let viewMode = 'reference';
+let lastPortrait = window.innerWidth < window.innerHeight;
 const undoStack = [];
 const redoStack = [];
 const raycaster = new THREE.Raycaster();
@@ -99,14 +101,16 @@ function rebuildOcean() {
     ocean.geometry.dispose();
     ocean.material.dispose();
   }
-  const geometry = new THREE.PlaneGeometry(430, 430);
+
+  const geometry = new THREE.PlaneGeometry(520, 520);
   const material = new THREE.MeshStandardMaterial({
     color: '#39abc9',
     roughness: 0.68,
     metalness: 0,
     transparent: true,
-    opacity: 0.9
+    opacity: 0.86
   });
+
   ocean = new THREE.Mesh(geometry, material);
   ocean.rotation.x = -Math.PI / 2;
   ocean.position.y = world.waterLevel;
@@ -127,27 +131,47 @@ function rebuildTerrain() {
 
 function updateStatus(extra) {
   const suffix = extra ? ' · ' + extra : '';
-  status.textContent = world.width + '×' + world.depth + ' · ' + world.columns.size + ' 实心地形柱 · ' + tool + '/' + surface + suffix;
+  status.textContent =
+    world.width + '×' + world.depth +
+    ' · ' + world.blocks.size.toLocaleString() + ' 实体方块' +
+    ' · ' + world.columns.size.toLocaleString() + ' 地表格' +
+    ' · ' + tool + '/' + surface + suffix;
+}
+
+function applyView(mode) {
+  viewMode = mode;
+  const portrait = camera.aspect < 0.8;
+
+  if (mode === 'top') {
+    camera.fov = portrait ? 58 : 46;
+    camera.position.set(0, portrait ? 350 : 245, 0.01);
+    controls.target.set(0, 0, 0);
+  } else if (mode === 'rear') {
+    camera.fov = portrait ? 58 : 46;
+    camera.position.set(8, portrait ? 300 : 185, portrait ? -260 : -190);
+    controls.target.set(0, 3, 0);
+  } else {
+    // High oblique view. In portrait, back the camera away and raise it so the
+    // complete 160x160 island fits instead of collapsing onto the horizon.
+    camera.fov = portrait ? 58 : 46;
+    camera.position.set(-8, portrait ? 300 : 185, portrait ? 260 : 190);
+    controls.target.set(0, 3, 0);
+  }
+
+  camera.updateProjectionMatrix();
+  controls.update();
 }
 
 function setReferenceView() {
-  // South/open-sea view: lighthouse remains on the right, matching the key front views.
-  camera.position.set(-8, 102, 178);
-  controls.target.set(0, 4.5, -2);
-  controls.update();
+  applyView('reference');
 }
 
 function setTopView() {
-  camera.position.set(0, 215, 0.01);
-  controls.target.set(0, 0, 0);
-  controls.update();
+  applyView('top');
 }
 
 function setRearView() {
-  // Inland/rear view used to compare the back-side silhouette and west green mass.
-  camera.position.set(8, 100, -176);
-  controls.target.set(0, 4.5, 2);
-  controls.update();
+  applyView('rear');
 }
 
 function gridFromHit(hit) {
@@ -162,16 +186,16 @@ function gridFromHit(hit) {
 function applyEdit(x, z) {
   if (!world.inBounds(x, z)) return;
   const before = world.cloneColumn(x, z);
-  const current = before || { x: x, z: z, height: 0, surface: surface };
+  const current = before || { x, z, height: world.minY - 1, surface };
 
   if (tool === 'raise') world.set(x, z, current.height + 1, current.surface || surface);
   else if (tool === 'lower') world.set(x, z, current.height - 1, current.surface || surface);
-  else if (tool === 'paint' && current.height > 0) world.set(x, z, current.height, surface);
+  else if (tool === 'paint' && before) world.set(x, z, current.height, surface);
 
   const after = world.cloneColumn(x, z);
   if (JSON.stringify(before) === JSON.stringify(after)) return;
 
-  undoStack.push({ x: x, z: z, before: before, after: after });
+  undoStack.push({ x, z, before, after });
   if (undoStack.length > 200) undoStack.shift();
   redoStack.length = 0;
   rebuildTerrain();
@@ -220,6 +244,7 @@ renderer.domElement.addEventListener('pointerup', function (event) {
   raycaster.setFromCamera(pointer, camera);
   const hit = raycaster.intersectObject(terrainMesh, false)[0];
   if (!hit) return;
+
   const cell = gridFromHit(hit);
   applyEdit(cell.x, cell.z);
 });
@@ -237,6 +262,7 @@ app.addEventListener('click', function (event) {
     updateButtonStates();
     return;
   }
+
   if (button.dataset.surface) {
     surface = button.dataset.surface;
     updateButtonStates();
@@ -252,7 +278,7 @@ app.addEventListener('click', function (event) {
     case 'export': downloadWorld(world); updateStatus('JSON 已导出'); break;
     case 'import': fileInput.click(); break;
     case 'reset':
-      if (window.confirm('重置为五视图重构后的 v0.1 海岛基底？当前未导出的修改会丢失。')) {
+      if (window.confirm('重置为五视图重构后的 v0.1 真实体素海岛？当前未导出的修改会丢失。')) {
         world = BlockWorld.fromReference();
         undoStack.length = 0;
         redoStack.length = 0;
@@ -267,6 +293,7 @@ app.addEventListener('click', function (event) {
 fileInput.addEventListener('change', async function () {
   const file = fileInput.files?.[0];
   if (!file) return;
+
   try {
     world = parseWorld(await file.text());
     undoStack.length = 0;
@@ -287,6 +314,7 @@ window.addEventListener('keydown', function (event) {
     event.preventDefault();
     event.shiftKey ? doRedo() : doUndo();
   }
+
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
     event.preventDefault();
     doRedo();
@@ -297,6 +325,12 @@ window.addEventListener('resize', function () {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+
+  const portrait = window.innerWidth < window.innerHeight;
+  if (portrait !== lastPortrait) {
+    lastPortrait = portrait;
+    applyView(viewMode);
+  }
 });
 
 rebuildOcean();

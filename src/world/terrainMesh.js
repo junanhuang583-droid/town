@@ -1,13 +1,24 @@
 import * as THREE from 'three';
 
-const SURFACE_COLORS = {
+const TOP_COLORS = {
   grass: new THREE.Color('#86c96e'),
   sand: new THREE.Color('#ead49a'),
   rock: new THREE.Color('#879096')
 };
-const ROCK_CORE = new THREE.Color('#707a80');
-const ROCK_CORE_DARK = new THREE.Color('#616b72');
-const FOUNDATION_Y = -6;
+
+const SIDE_COLORS = {
+  grass: new THREE.Color('#70875a'),
+  sand: new THREE.Color('#c8ad78'),
+  rock: new THREE.Color('#707a80')
+};
+
+const ROCK_BOTTOM = new THREE.Color('#616b72');
+
+function blockFaceColor(type, normal, y, minY) {
+  if (normal[1] > 0.5) return TOP_COLORS[type] || TOP_COLORS.rock;
+  if (normal[1] < -0.5 && y === minY) return ROCK_BOTTOM;
+  return SIDE_COLORS[type] || SIDE_COLORS.rock;
+}
 
 function pushQuad(buffers, a, b, c, d, normal, color) {
   const base = buffers.positions.length / 3;
@@ -19,48 +30,63 @@ function pushQuad(buffers, a, b, c, d, normal, color) {
   buffers.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
 }
 
-function coreColor(y) {
-  return y <= -2 ? ROCK_CORE_DARK : ROCK_CORE;
-}
+const FACES = [
+  {
+    d: [1, 0, 0],
+    normal: [1, 0, 0],
+    quad: (x0, x1, y0, y1, z0, z1) => [[x1, y0, z0], [x1, y0, z1], [x1, y1, z1], [x1, y1, z0]]
+  },
+  {
+    d: [-1, 0, 0],
+    normal: [-1, 0, 0],
+    quad: (x0, x1, y0, y1, z0, z1) => [[x0, y0, z1], [x0, y0, z0], [x0, y1, z0], [x0, y1, z1]]
+  },
+  {
+    d: [0, 1, 0],
+    normal: [0, 1, 0],
+    quad: (x0, x1, y0, y1, z0, z1) => [[x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0]]
+  },
+  {
+    d: [0, -1, 0],
+    normal: [0, -1, 0],
+    quad: (x0, x1, y0, y1, z0, z1) => [[x0, y0, z1], [x0, y0, z0], [x1, y0, z0], [x1, y0, z1]]
+  },
+  {
+    d: [0, 0, 1],
+    normal: [0, 0, 1],
+    quad: (x0, x1, y0, y1, z0, z1) => [[x1, y0, z1], [x0, y0, z1], [x0, y1, z1], [x1, y1, z1]]
+  },
+  {
+    d: [0, 0, -1],
+    normal: [0, 0, -1],
+    quad: (x0, x1, y0, y1, z0, z1) => [[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]]
+  }
+];
 
 export function buildTerrainMesh(world) {
   const b = { positions: [], normals: [], colors: [], indices: [] };
   const ox = -world.width / 2;
   const oz = -world.depth / 2;
 
-  for (const column of world.columns.values()) {
-    const { x, z, height, surface } = column;
-    const x0 = ox + x;
+  // World data is fully voxelized. Rendering still omits hidden internal faces.
+  for (const block of world.blocks.values()) {
+    const x0 = ox + block.x;
     const x1 = x0 + 1;
-    const z0 = oz + z;
+    const y0 = block.y;
+    const y1 = y0 + 1;
+    const z0 = oz + block.z;
     const z1 = z0 + 1;
-    const topColor = SURFACE_COLORS[surface] || SURFACE_COLORS.grass;
 
-    pushQuad(b, [x0, height, z0], [x0, height, z1], [x1, height, z1], [x1, height, z0], [0, 1, 0], topColor);
+    for (const face of FACES) {
+      const nx = block.x + face.d[0];
+      const ny = block.y + face.d[1];
+      const nz = block.z + face.d[2];
+      if (world.hasBlock(nx, ny, nz)) continue;
 
-    const sides = [
-      { dx: 1, dz: 0, normal: [1, 0, 0], quad: y => [[x1, y, z0], [x1, y, z1], [x1, y + 1, z1], [x1, y + 1, z0]] },
-      { dx: -1, dz: 0, normal: [-1, 0, 0], quad: y => [[x0, y, z1], [x0, y, z0], [x0, y + 1, z0], [x0, y + 1, z1]] },
-      { dx: 0, dz: 1, normal: [0, 0, 1], quad: y => [[x1, y, z1], [x0, y, z1], [x0, y + 1, z1], [x1, y + 1, z1]] },
-      { dx: 0, dz: -1, normal: [0, 0, -1], quad: y => [[x0, y, z0], [x1, y, z0], [x1, y + 1, z0], [x0, y + 1, z0]] }
-    ];
-
-    for (const side of sides) {
-      const neighbor = world.get(x + side.dx, z + side.dz);
-      const neighborHeight = neighbor ? neighbor.height : FOUNDATION_Y;
-      for (let y = neighborHeight; y < height; y++) {
-        const q = side.quad(y);
-        pushQuad(b, q[0], q[1], q[2], q[3], side.normal, coreColor(y));
-      }
+      const q = face.quad(x0, x1, y0, y1, z0, z1);
+      const color = blockFaceColor(block.type, face.normal, block.y, world.minY);
+      pushQuad(b, q[0], q[1], q[2], q[3], face.normal, color);
     }
-
-    // Continuous sealed underside well below sea level.
-    pushQuad(
-      b,
-      [x0, FOUNDATION_Y, z1], [x0, FOUNDATION_Y, z0],
-      [x1, FOUNDATION_Y, z0], [x1, FOUNDATION_Y, z1],
-      [0, -1, 0], ROCK_CORE_DARK
-    );
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -70,7 +96,11 @@ export function buildTerrainMesh(world) {
   geometry.setIndex(b.indices);
   geometry.computeBoundingSphere();
 
-  const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  const material = new THREE.MeshLambertMaterial({
+    vertexColors: true,
+    flatShading: true
+  });
+
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = 'terrain';
   mesh.receiveShadow = true;
