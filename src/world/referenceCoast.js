@@ -37,6 +37,103 @@ export const BREAKWATER_PATH = Object.freeze([
   [46, 111], [53, 114], [61, 116], [69, 117], [77, 117], [84, 115]
 ]);
 
+
+const LIGHTHOUSE_PATCH_BOUNDS = Object.freeze({
+  minX: 112,
+  maxX: 156,
+  minZ: 76,
+  maxZ: 112
+});
+
+// Hand-authored coastline for the lighthouse corner. This deliberately avoids
+// concentric distance bands: the reference has unequal fingers, notches and
+// broken ledges around the cape.
+const LIGHTHOUSE_CAPE_POLYGON = Object.freeze([
+  [113, 82], [119, 82], [123, 79], [129, 81], [133, 79], [138, 81],
+  [143, 80], [146, 83], [150, 84], [149, 88], [153, 89], [151, 92],
+  [155, 95], [152, 98], [153, 101], [148, 103], [147, 107], [142, 106],
+  [139, 110], [135, 108], [132, 111], [128, 108], [124, 110], [122, 106],
+  [118, 107], [119, 103], [114, 103], [116, 99], [112, 97], [115, 93],
+  [112, 90], [116, 87], [113, 84]
+]);
+
+// Each zone is a deliberately irregular shelf seen in the lighthouse close-ups.
+// Lower green shelves are intentional: grass is not restricted to the topmost
+// 12-block platform in the reference.
+const LIGHTHOUSE_TERRAIN_ZONES = Object.freeze([
+  {
+    height: 11,
+    surface: 'grass',
+    polygon: [[119, 86], [125, 84], [130, 85], [134, 83], [140, 84], [145, 87],
+      [144, 91], [147, 94], [143, 97], [142, 101], [136, 100], [132, 104],
+      [128, 102], [123, 104], [122, 99], [118, 97], [120, 92], [118, 89]]
+  },
+  {
+    height: 9,
+    surface: 'grass',
+    polygon: [[114, 84], [120, 82], [124, 82], [124, 87], [121, 90],
+      [122, 94], [117, 96], [114, 93], [116, 89]]
+  },
+  {
+    height: 8,
+    surface: 'grass',
+    polygon: [[143, 84], [148, 85], [149, 89], [147, 92], [150, 95],
+      [146, 98], [142, 96], [144, 92], [141, 89]]
+  },
+  {
+    height: 8,
+    surface: 'rock',
+    polygon: [[114, 94], [119, 92], [122, 95], [120, 100], [116, 101],
+      [113, 98]]
+  },
+  {
+    height: 7,
+    surface: 'rock',
+    polygon: [[136, 101], [143, 99], [147, 102], [144, 106], [140, 105],
+      [138, 108], [134, 106]]
+  },
+  {
+    height: 6,
+    surface: 'grass',
+    polygon: [[124, 103], [130, 101], [135, 104], [133, 108], [129, 107],
+      [126, 109], [122, 106]]
+  },
+  {
+    height: 6,
+    surface: 'grass',
+    polygon: [[147, 94], [152, 94], [151, 98], [152, 101], [148, 102],
+      [145, 100]]
+  },
+  {
+    height: 5,
+    surface: 'grass',
+    polygon: [[117, 101], [122, 100], [124, 104], [121, 107], [117, 106],
+      [115, 103]]
+  },
+  {
+    height: 5,
+    surface: 'rock',
+    polygon: [[132, 106], [138, 105], [140, 109], [136, 110], [133, 109]]
+  },
+  {
+    height: 4,
+    surface: 'grass',
+    polygon: [[145, 102], [150, 101], [149, 105], [146, 107], [142, 105]]
+  },
+  {
+    height: 4,
+    surface: 'rock',
+    polygon: [[121, 106], [126, 106], [128, 109], [124, 110], [120, 108]]
+  }
+]);
+
+const LIGHTHOUSE_ROCK_OUTCROPS = Object.freeze([
+  { height: 5, polygon: [[151, 89], [154, 90], [153, 93], [150, 92]] },
+  { height: 4, polygon: [[149, 101], [153, 101], [151, 105], [147, 104]] },
+  { height: 4, polygon: [[137, 108], [141, 108], [140, 111], [136, 111]] },
+  { height: 3, polygon: [[119, 107], [123, 108], [122, 111], [118, 110]] }
+]);
+
 function insidePolygon(x, z, points) {
   let inside = false;
   for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
@@ -85,6 +182,76 @@ function isLighthouseHeadland(x, z) {
   // Only the compact cape/connector is treated as lighthouse terrain.
   // Other coast and town cells stay on their previous rules.
   return x >= 116 && z >= 74 && z <= 108;
+}
+
+
+function lighthouseZoneAt(x, z) {
+  for (const zone of LIGHTHOUSE_TERRAIN_ZONES) {
+    if (insidePolygon(x, z, zone.polygon)) return zone;
+  }
+  for (const outcrop of LIGHTHOUSE_ROCK_OUTCROPS) {
+    if (insidePolygon(x, z, outcrop.polygon)) {
+      return { height: outcrop.height, surface: 'rock' };
+    }
+  }
+  return null;
+}
+
+function fallbackLighthouseRock(x, z) {
+  // Remaining cape cells are exposed rock, but still intentionally uneven.
+  // These are authored sectors rather than distance rings.
+  if (z >= 104 && x <= 132) return { height: 3, surface: 'rock' };
+  if (x >= 147 && z >= 96) return { height: 3, surface: 'rock' };
+  if (x >= 148 && z <= 94) return { height: 4, surface: 'rock' };
+  if (z >= 101) return { height: 4, surface: 'rock' };
+  if (x <= 118 && z >= 94) return { height: 5, surface: 'rock' };
+  return { height: 6, surface: 'rock' };
+}
+
+function applyLighthouseTerrainPatch(columns) {
+  const { minX, maxX, minZ, maxZ } = LIGHTHOUSE_PATCH_BOUNDS;
+
+  // Remove the old algorithmic cape only inside this local construction window.
+  for (let z = minZ; z <= maxZ; z++) {
+    for (let x = minX; x <= maxX; x++) {
+      columns.delete(String(x) + ',' + String(z));
+    }
+  }
+
+  // Rebuild the cape cell by cell from the hand-authored footprint and shelves.
+  for (let z = minZ; z <= maxZ; z++) {
+    for (let x = minX; x <= maxX; x++) {
+      const px = x + 0.5;
+      const pz = z + 0.5;
+      if (!insidePolygon(px, pz, LIGHTHOUSE_CAPE_POLYGON)) continue;
+
+      const zone = lighthouseZoneAt(px, pz);
+      const spec = zone || fallbackLighthouseRock(px, pz);
+      columns.set(String(x) + ',' + String(z), {
+        x,
+        z,
+        height: spec.height,
+        surface: spec.surface
+      });
+    }
+  }
+
+  // Add a few shoreline rock clusters that extend beyond the main footprint.
+  for (const outcrop of LIGHTHOUSE_ROCK_OUTCROPS) {
+    for (let z = minZ; z <= maxZ; z++) {
+      for (let x = minX; x <= maxX; x++) {
+        const px = x + 0.5;
+        const pz = z + 0.5;
+        if (!insidePolygon(px, pz, outcrop.polygon)) continue;
+        columns.set(String(x) + ',' + String(z), {
+          x,
+          z,
+          height: outcrop.height,
+          surface: 'rock'
+        });
+      }
+    }
+  }
 }
 
 function isMainBayBeach(x, z, coastDistance) {
@@ -185,6 +352,8 @@ export function createReferenceColumns() {
     }
   }
 
+  // Replace only the lighthouse corner with the irregular hand-authored terrain.
+  applyLighthouseTerrainPatch(columns);
   addBreakwater(columns);
   return columns;
 }
