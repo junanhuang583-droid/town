@@ -16,8 +16,10 @@ export const MAIN_COAST_POLYGON = Object.freeze([
   [154, 67], [151, 78],
 
   // East / lighthouse headland.
-  [153, 88], [152, 98], [148, 106], [141, 112], [134, 115], [128, 114],
-  [123, 110], [120, 105],
+  // Tightened from the reference close-up + top view: the cape is a compact
+  // grass-topped rocky point, not the broad fan-shaped platform from the draft.
+  [150, 84], [148, 90], [145, 96], [141, 101], [136, 105], [130, 107],
+  [125, 106], [121, 104], [118, 102],
 
   // Rebuilt inner bay from the five views:
   // much wider, substantially shallower, and less U-shaped than the rejected pass.
@@ -80,7 +82,9 @@ function distanceToCoast(x, z) {
 }
 
 function isLighthouseHeadland(x, z) {
-  return x >= 116 && z >= 68 && z <= 116;
+  // Only the compact cape/connector is treated as lighthouse terrain.
+  // Other coast and town cells stay on their previous rules.
+  return x >= 116 && z >= 74 && z <= 108;
 }
 
 function isMainBayBeach(x, z, coastDistance) {
@@ -115,7 +119,18 @@ function islandHeight(x, z, coastDistance, surface) {
   }
 
   if (isLighthouseHeadland(x, z)) {
-    height = Math.max(4, Math.min(6, height));
+    // User-counted reference: the main lighthouse/street platform is about
+    // 12 visible blocks above sea level. With block y=11, the top face is y=12.
+    // Submerged foundation blocks are not counted.
+    if (coastDistance <= 1.25) {
+      height = 3 + ((Math.floor(x) + Math.floor(z)) % 2);
+    } else if (coastDistance <= 2.5) {
+      height = 6 + ((Math.floor(x * 3 + z)) % 2);
+    } else if (coastDistance <= 4.25) {
+      height = 9;
+    } else {
+      height = 11;
+    }
   }
 
   return Math.max(2, Math.min(9, height));
@@ -151,7 +166,7 @@ export function createReferenceColumns() {
       const coastDistance = distanceToCoast(px, pz);
       const headland = isLighthouseHeadland(px, pz);
       const beach = isMainBayBeach(px, pz, coastDistance) || isWestCoveBeach(px, pz, coastDistance);
-      const surface = headland && coastDistance <= 9
+      const surface = headland && coastDistance <= 4.25
         ? 'rock'
         : beach
           ? 'sand'
