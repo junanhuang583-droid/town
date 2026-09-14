@@ -131,6 +131,8 @@ function islandHeight(x, z, coastDistance, surface) {
     } else {
       height = 11;
     }
+
+    return Math.max(2, Math.min(11, height));
   }
 
   return Math.max(2, Math.min(9, height));
