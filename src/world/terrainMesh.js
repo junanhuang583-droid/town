@@ -30,36 +30,51 @@ function pushQuad(buffers, a, b, c, d, normal, color) {
   buffers.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
 }
 
+// IMPORTANT: vertices are wound counter-clockwise when viewed from outside.
+// The previous version had all four vertical faces reversed, so FrontSide
+// culling made the island look hollow/striped from oblique views.
 const FACES = [
   {
     d: [1, 0, 0],
     normal: [1, 0, 0],
-    quad: (x0, x1, y0, y1, z0, z1) => [[x1, y0, z0], [x1, y0, z1], [x1, y1, z1], [x1, y1, z0]]
+    quad: (x0, x1, y0, y1, z0, z1) => [
+      [x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]
+    ]
   },
   {
     d: [-1, 0, 0],
     normal: [-1, 0, 0],
-    quad: (x0, x1, y0, y1, z0, z1) => [[x0, y0, z1], [x0, y0, z0], [x0, y1, z0], [x0, y1, z1]]
+    quad: (x0, x1, y0, y1, z0, z1) => [
+      [x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]
+    ]
   },
   {
     d: [0, 1, 0],
     normal: [0, 1, 0],
-    quad: (x0, x1, y0, y1, z0, z1) => [[x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0]]
+    quad: (x0, x1, y0, y1, z0, z1) => [
+      [x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0]
+    ]
   },
   {
     d: [0, -1, 0],
     normal: [0, -1, 0],
-    quad: (x0, x1, y0, y1, z0, z1) => [[x0, y0, z1], [x0, y0, z0], [x1, y0, z0], [x1, y0, z1]]
+    quad: (x0, x1, y0, y1, z0, z1) => [
+      [x0, y0, z1], [x0, y0, z0], [x1, y0, z0], [x1, y0, z1]
+    ]
   },
   {
     d: [0, 0, 1],
     normal: [0, 0, 1],
-    quad: (x0, x1, y0, y1, z0, z1) => [[x1, y0, z1], [x0, y0, z1], [x0, y1, z1], [x1, y1, z1]]
+    quad: (x0, x1, y0, y1, z0, z1) => [
+      [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]
+    ]
   },
   {
     d: [0, 0, -1],
     normal: [0, 0, -1],
-    quad: (x0, x1, y0, y1, z0, z1) => [[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]]
+    quad: (x0, x1, y0, y1, z0, z1) => [
+      [x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]
+    ]
   }
 ];
 
@@ -68,7 +83,8 @@ export function buildTerrainMesh(world) {
   const ox = -world.width / 2;
   const oz = -world.depth / 2;
 
-  // World data is fully voxelized. Rendering still omits hidden internal faces.
+  // World data is fully voxelized. Rendering omits only faces completely hidden
+  // by neighboring blocks; every visible outer face remains present.
   for (const block of world.blocks.values()) {
     const x0 = ox + block.x;
     const x1 = x0 + 1;
@@ -98,7 +114,8 @@ export function buildTerrainMesh(world) {
 
   const material = new THREE.MeshLambertMaterial({
     vertexColors: true,
-    flatShading: true
+    flatShading: true,
+    side: THREE.FrontSide
   });
 
   const mesh = new THREE.Mesh(geometry, material);

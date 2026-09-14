@@ -47,7 +47,7 @@ const fileInput = app.querySelector('[data-role="file"]');
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#bdeaf4');
-scene.fog = new THREE.Fog('#bdeaf4', 260, 620);
+scene.fog = new THREE.Fog('#bdeaf4', 420, 980);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -57,14 +57,14 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 viewport.appendChild(renderer.domElement);
 
-const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 0.1, 900);
+const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 1400);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.enablePan = true;
 controls.zoomToCursor = true;
 controls.minDistance = 35;
-controls.maxDistance = 520;
+controls.maxDistance = 900;
 controls.maxPolarAngle = THREE.MathUtils.degToRad(88);
 controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
 controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
@@ -138,27 +138,35 @@ function updateStatus(extra) {
     ' · ' + tool + '/' + surface + suffix;
 }
 
+function fitDistanceForWorld() {
+  // Fit a conservative sphere around the whole island using the smaller of
+  // vertical/horizontal FOV. This makes portrait phones frame the complete map.
+  const radius = Math.hypot(world.width, world.depth) * 0.5 + 18;
+  const vFov = THREE.MathUtils.degToRad(camera.fov);
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  const limitingFov = Math.max(THREE.MathUtils.degToRad(18), Math.min(vFov, hFov));
+  return radius / Math.sin(limitingFov / 2) * 1.18;
+}
+
 function applyView(mode) {
   viewMode = mode;
-  const portrait = camera.aspect < 0.8;
+  camera.fov = 52;
+  camera.updateProjectionMatrix();
 
+  const distance = fitDistanceForWorld();
+  controls.target.set(0, 3, 0);
+
+  let direction;
   if (mode === 'top') {
-    camera.fov = portrait ? 58 : 46;
-    camera.position.set(0, portrait ? 350 : 245, 0.01);
-    controls.target.set(0, 0, 0);
+    direction = new THREE.Vector3(0, 1, 0.001);
   } else if (mode === 'rear') {
-    camera.fov = portrait ? 58 : 46;
-    camera.position.set(8, portrait ? 300 : 185, portrait ? -260 : -190);
-    controls.target.set(0, 3, 0);
+    direction = new THREE.Vector3(0.02, 0.82, -0.57);
   } else {
-    // High oblique view. In portrait, back the camera away and raise it so the
-    // complete 160x160 island fits instead of collapsing onto the horizon.
-    camera.fov = portrait ? 58 : 46;
-    camera.position.set(-8, portrait ? 300 : 185, portrait ? 260 : 190);
-    controls.target.set(0, 3, 0);
+    direction = new THREE.Vector3(-0.02, 0.82, 0.57);
   }
 
-  camera.updateProjectionMatrix();
+  direction.normalize();
+  camera.position.copy(controls.target).addScaledVector(direction, distance);
   controls.update();
 }
 
