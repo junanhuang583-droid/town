@@ -28,7 +28,6 @@ app.innerHTML = [
   '</div>',
   '<div class="fp-actions">',
   '<button data-fp-action="interact">开 / 关门</button>',
-  '<button data-fp-action="exit">退出第一视角</button>',
   '</div>',
   '</section>',
   '<div class="house-hint">拖动旋转 · 滚轮/双指缩放 · 点击门开关</div>'
@@ -171,7 +170,7 @@ avatarPart(new THREE.BoxGeometry(0.18, 0.1, 0.34), avatarShoes, -0.11, 0.12, -0.
 avatarPart(new THREE.BoxGeometry(0.18, 0.1, 0.34), avatarShoes, 0.11, 0.12, -0.08);
 avatarPart(new THREE.BoxGeometry(0.08, 0.08, 0.05), mats.black, 0, 1.73, -0.175);
 
-const playerPosition = new THREE.Vector3(-4.7, 0.6, 6.9);
+const playerPosition = new THREE.Vector3(-4.7, 0.6, 8.4);
 avatar.position.copy(playerPosition);
 
 function box(parent, width, height, depth, mat, x, y, z, rotationY = 0) {
@@ -432,7 +431,9 @@ box(house, 1.02, 0.08, 1.0, mats.white, 7.28, 0.66, -3.0);
 const showerGlass = box(house, 0.05, 1.9, 1.0, glassMaterial, 6.78, 1.57, -3.0);
 showerGlass.castShadow = false;
 
-// A few subtle ceiling-light disks remain visible when the roof hides.
+const ceilingFixtures = new THREE.Group();
+house.add(ceilingFixtures);
+
 function ceilingLight(x, z) {
   const mesh = new THREE.Mesh(
     new THREE.CylinderGeometry(0.14, 0.14, 0.035, 24),
@@ -440,7 +441,7 @@ function ceilingLight(x, z) {
   );
   mesh.position.set(x, 2.98, z);
   mesh.rotation.x = Math.PI / 2;
-  house.add(mesh);
+  ceilingFixtures.add(mesh);
 }
 ceilingLight(-3.0, 0.2);
 ceilingLight(4.4, 2.5);
@@ -511,6 +512,11 @@ roof.castShadow = true;
 roof.receiveShadow = true;
 roofGroup.add(roof);
 
+// A simple interior ceiling keeps first-person visits feeling enclosed while
+// the exterior roof remains physically present. It disappears with the roof
+// only when the user explicitly hides the roof.
+box(roofGroup, 15.65, 0.07, 9.7, material('#ece9e1', 0.96), 0, 3.1, 0);
+
 box(roofGroup, 17.45, 0.16, 0.18, mats.roofEdge, 0, 3.2, 5.63);
 box(roofGroup, 17.45, 0.16, 0.18, mats.roofEdge, 0, 3.2, -5.63);
 box(roofGroup, 0.18, 0.16, 11.25, mats.roofEdge, 8.66, 3.2, 0);
@@ -548,6 +554,7 @@ function updateRoofVisibility() {
   }
 
   roofGroup.visible = visible;
+  ceilingFixtures.visible = visible;
 
   if (visible !== lastRoofVisible) {
     lastRoofVisible = visible;
@@ -715,7 +722,7 @@ function exitFirstPerson(resetCamera = true) {
 function interactFromFirstPerson() {
   raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
   const hits = raycaster.intersectObjects(doorHitTargets, false);
-  const hit = hits.find((item) => item.distance <= 2.5);
+  const hit = hits.find((item) => item.distance <= 4.0);
 
   if (hit?.object?.userData?.doorId) {
     toggleDoor(hit.object.userData.doorId);
@@ -728,7 +735,7 @@ function interactFromFirstPerson() {
     const p = new THREE.Vector3();
     target.getWorldPosition(p);
     const d = p.distanceTo(camera.position);
-    if (d < bestDistance && d <= 2.0) {
+    if (d < bestDistance && d <= 3.8) {
       bestDistance = d;
       bestId = target.userData.doorId;
     }
@@ -852,7 +859,6 @@ for (const button of moveButtons) {
 }
 
 app.querySelector('[data-fp-action="interact"]').addEventListener('click', interactFromFirstPerson);
-app.querySelector('[data-fp-action="exit"]').addEventListener('click', () => exitFirstPerson());
 
 firstPersonButton.addEventListener('click', () => {
   if (firstPerson) exitFirstPerson();
