@@ -7,15 +7,29 @@ const app = document.querySelector('#app');
 app.innerHTML = [
   '<div class="house-viewport" data-role="viewport"></div>',
   '<section class="house-panel">',
-  '<strong>Town · 房屋实验场 v0.1</strong>',
-  '<span>单层住宅样板 · 拉近自动隐藏屋顶</span>',
+  '<strong>Town · 房屋实验场 v0.2</strong>',
+  '<span>单层住宅样板 · 支持第一视角参观</span>',
   '<span data-role="status">屋顶显示 · 点击门可开关</span>',
   '</section>',
   '<a class="back-town" href="../">返回 Town</a>',
   '<section class="house-toolbar">',
   '<button data-action="reset-view">重置视角</button>',
+  '<button data-action="first-person">第一视角</button>',
   '<button data-action="roof">屋顶：自动</button>',
   '<button data-action="doors">全部开门</button>',
+  '</section>',
+  '<div class="fp-crosshair" aria-hidden="true">+</div>',
+  '<section class="fp-controls" aria-label="第一视角控制">',
+  '<div class="move-pad">',
+  '<button data-move="forward" aria-label="前进">▲</button>',
+  '<button data-move="left" aria-label="左移">◀</button>',
+  '<button data-move="back" aria-label="后退">▼</button>',
+  '<button data-move="right" aria-label="右移">▶</button>',
+  '</div>',
+  '<div class="fp-actions">',
+  '<button data-fp-action="interact">开 / 关门</button>',
+  '<button data-fp-action="exit">退出第一视角</button>',
+  '</div>',
   '</section>',
   '<div class="house-hint">拖动旋转 · 滚轮/双指缩放 · 点击门开关</div>'
 ].join('');
@@ -24,6 +38,8 @@ const viewport = app.querySelector('[data-role="viewport"]');
 const status = app.querySelector('[data-role="status"]');
 const roofButton = app.querySelector('[data-action="roof"]');
 const doorsButton = app.querySelector('[data-action="doors"]');
+const firstPersonButton = app.querySelector('[data-action="first-person"]');
+const moveButtons = [...app.querySelectorAll('[data-move]')];
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#d8dde0');
@@ -48,6 +64,17 @@ controls.maxDistance = 42;
 controls.minPolarAngle = THREE.MathUtils.degToRad(24);
 controls.maxPolarAngle = THREE.MathUtils.degToRad(82);
 controls.target.set(0, 1.1, 0);
+
+let firstPerson = false;
+let fpYaw = 0;
+let fpPitch = -0.03;
+const fpEyeHeight = 1.68;
+const fpMoveSpeed = 3.0;
+const fpPlayerRadius = 0.22;
+const fpKeys = new Set();
+const fpTouchMove = new Set();
+let fpLookPointer = null;
+const clock = new THREE.Clock();
 
 scene.add(new THREE.HemisphereLight(0xffffff, 0x687077, 2.05));
 
@@ -118,6 +145,34 @@ const mirrorMaterial = new THREE.MeshStandardMaterial({
 
 const house = new THREE.Group();
 scene.add(house);
+
+const avatar = new THREE.Group();
+scene.add(avatar);
+
+function avatarPart(geometry, mat, x, y, z) {
+  const mesh = new THREE.Mesh(geometry, mat);
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  avatar.add(mesh);
+  return mesh;
+}
+
+const avatarSkin = material('#d6a27d', 0.82);
+const avatarShirt = material('#4e7080', 0.86);
+const avatarPants = material('#37454f', 0.9);
+const avatarShoes = material('#22292d', 0.86);
+
+avatarPart(new THREE.SphereGeometry(0.18, 24, 16), avatarSkin, 0, 1.72, 0);
+avatarPart(new THREE.CapsuleGeometry(0.2, 0.52, 7, 16), avatarShirt, 0, 1.2, 0);
+avatarPart(new THREE.CapsuleGeometry(0.08, 0.62, 6, 12), avatarPants, -0.11, 0.55, 0);
+avatarPart(new THREE.CapsuleGeometry(0.08, 0.62, 6, 12), avatarPants, 0.11, 0.55, 0);
+avatarPart(new THREE.BoxGeometry(0.18, 0.1, 0.34), avatarShoes, -0.11, 0.12, -0.08);
+avatarPart(new THREE.BoxGeometry(0.18, 0.1, 0.34), avatarShoes, 0.11, 0.12, -0.08);
+avatarPart(new THREE.BoxGeometry(0.08, 0.08, 0.05), mats.black, 0, 1.73, -0.175);
+
+const playerPosition = new THREE.Vector3(-4.7, 0.6, 6.9);
+avatar.position.copy(playerPosition);
 
 function box(parent, width, height, depth, mat, x, y, z, rotationY = 0) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mat);
@@ -464,26 +519,51 @@ box(roofGroup, 0.18, 0.16, 11.25, mats.roofEdge, -8.66, 3.2, 0);
 let roofMode = 'auto';
 let lastRoofVisible = true;
 
+function refreshRoofButton() {
+  if (firstPerson && roofMode === 'auto') {
+    roofButton.textContent = '屋顶：显示';
+    return;
+  }
+
+  roofButton.textContent =
+    roofMode === 'auto' ? '屋顶：自动' :
+    roofMode === 'show' ? '屋顶：显示' :
+    '屋顶：隐藏';
+}
+
 function updateRoofVisibility() {
   const distance = camera.position.distanceTo(controls.target);
   let visible;
 
-  if (roofMode === 'show') visible = true;
-  else if (roofMode === 'hide') visible = false;
-  else visible = distance >= 19;
+  if (firstPerson) {
+    // First-person visits keep the physical roof in place. It only disappears
+    // after the user explicitly presses the roof button.
+    visible = roofMode !== 'hide';
+  } else if (roofMode === 'show') {
+    visible = true;
+  } else if (roofMode === 'hide') {
+    visible = false;
+  } else {
+    visible = distance >= 19;
+  }
 
   roofGroup.visible = visible;
 
   if (visible !== lastRoofVisible) {
     lastRoofVisible = visible;
-    status.textContent = (visible ? '屋顶显示' : '屋顶隐藏') + ' · 点击门可开关';
+    status.textContent =
+      (firstPerson ? '第一视角 · ' : '') +
+      (visible ? '屋顶显示' : '屋顶隐藏') +
+      ' · 门可交互';
   }
 }
 
 function setOverview() {
+  if (firstPerson) exitFirstPerson(false);
   camera.position.set(18.5, 16.5, 19.5);
   controls.target.set(0, 1.05, 0);
   controls.update();
+  updateRoofVisibility();
 }
 
 setOverview();
@@ -509,15 +589,15 @@ doorsButton.addEventListener('click', () => {
 app.querySelector('[data-action="reset-view"]').addEventListener('click', setOverview);
 
 roofButton.addEventListener('click', () => {
-  if (roofMode === 'auto') roofMode = 'show';
-  else if (roofMode === 'show') roofMode = 'hide';
-  else roofMode = 'auto';
+  if (firstPerson) {
+    roofMode = roofMode === 'hide' ? 'show' : 'hide';
+  } else {
+    if (roofMode === 'auto') roofMode = 'show';
+    else if (roofMode === 'show') roofMode = 'hide';
+    else roofMode = 'auto';
+  }
 
-  roofButton.textContent =
-    roofMode === 'auto' ? '屋顶：自动' :
-    roofMode === 'show' ? '屋顶：显示' :
-    '屋顶：隐藏';
-
+  refreshRoofButton();
   updateRoofVisibility();
 });
 
@@ -525,11 +605,195 @@ const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let pointerDown = null;
 
+const staticCollisionRects = [
+  // Exterior walls.
+  { minX: -8.25, maxX: 8.25, minZ: -5.18, maxZ: -4.82 },
+  { minX: -8.25, maxX: -5.35, minZ: 4.82, maxZ: 5.18 },
+  { minX: -3.9, maxX: 8.25, minZ: 4.82, maxZ: 5.18 },
+  { minX: -8.18, maxX: -7.82, minZ: -5.2, maxZ: 5.2 },
+  { minX: 7.82, maxX: 8.18, minZ: -5.2, maxZ: 5.2 },
+
+  // Interior walls.
+  { minX: 1.02, maxX: 1.38, minZ: -5.0, maxZ: -1.62 },
+  { minX: 1.02, maxX: 1.38, minZ: -0.18, maxZ: 1.46 },
+  { minX: 1.02, maxX: 1.38, minZ: 4.14, maxZ: 5.0 },
+  { minX: 5.44, maxX: 5.8, minZ: -5.0, maxZ: -3.92 },
+  { minX: 5.44, maxX: 5.8, minZ: -2.68, maxZ: -2.28 },
+  { minX: 5.62, maxX: 8.0, minZ: -2.46, maxZ: -2.1 },
+
+  // Large furniture that should not be walked through.
+  { minX: -6.05, maxX: -2.25, minZ: 0.55, maxZ: 1.9 },
+  { minX: -4.65, maxX: -2.45, minZ: -0.8, maxZ: 0.3 },
+  { minX: -0.85, maxX: 0.9, minZ: -0.7, maxZ: 0.2 },
+  { minX: 1.45, maxX: 5.1, minZ: -4.65, maxZ: -0.35 },
+  { minX: 5.65, maxX: 7.65, minZ: -1.5, maxZ: -0.65 },
+  { minX: 6.65, maxX: 7.75, minZ: 0.1, maxZ: 4.9 },
+  { minX: 2.7, maxX: 5.45, minZ: 2.1, maxZ: 3.45 },
+  { minX: 5.75, maxX: 6.78, minZ: -3.2, maxZ: -2.4 },
+  { minX: 6.55, maxX: 7.75, minZ: -4.65, maxZ: -3.45 }
+];
+
+function pointBlocked(x, z) {
+  const pad = fpPlayerRadius;
+  for (const rect of staticCollisionRects) {
+    if (
+      x > rect.minX - pad &&
+      x < rect.maxX + pad &&
+      z > rect.minZ - pad &&
+      z < rect.maxZ + pad
+    ) {
+      return true;
+    }
+  }
+
+  // Closed doors block their own openings. Once opened, the openings become walkable.
+  if (!doorControllers.get('entry')?.open) {
+    if (x > -5.55 && x < -3.7 && z > 4.78 && z < 5.22) return true;
+  }
+  if (!doorControllers.get('bedroom')?.open) {
+    if (x > 0.98 && x < 1.42 && z > -1.72 && z < -0.05) return true;
+  }
+  if (!doorControllers.get('kitchen')?.open) {
+    if (x > 0.98 && x < 1.42 && z > 1.3 && z < 4.3) return true;
+  }
+  if (!doorControllers.get('bathroom')?.open) {
+    if (x > 5.4 && x < 5.84 && z > -4.02 && z < -2.56) return true;
+  }
+
+  return false;
+}
+
+function movePlayer(dx, dz) {
+  const nextX = THREE.MathUtils.clamp(playerPosition.x + dx, -14.5, 14.5);
+  const nextZ = THREE.MathUtils.clamp(playerPosition.z + dz, -10.5, 10.5);
+
+  if (!pointBlocked(nextX, playerPosition.z)) playerPosition.x = nextX;
+  if (!pointBlocked(playerPosition.x, nextZ)) playerPosition.z = nextZ;
+
+  avatar.position.copy(playerPosition);
+}
+
+function syncFirstPersonCamera() {
+  camera.position.set(playerPosition.x, playerPosition.y + fpEyeHeight, playerPosition.z);
+  camera.quaternion.setFromEuler(new THREE.Euler(fpPitch, fpYaw, 0, 'YXZ'));
+}
+
+function enterFirstPerson() {
+  if (firstPerson) return;
+  firstPerson = true;
+  controls.enabled = false;
+  avatar.visible = false;
+  app.classList.add('first-person');
+  firstPersonButton.textContent = '退出第一视角';
+  status.textContent = '第一视角 · 屋顶显示 · 门可交互';
+  refreshRoofButton();
+  syncFirstPersonCamera();
+  updateRoofVisibility();
+}
+
+function exitFirstPerson(resetCamera = true) {
+  if (!firstPerson) return;
+  firstPerson = false;
+  controls.enabled = true;
+  avatar.visible = true;
+  app.classList.remove('first-person');
+  firstPersonButton.textContent = '第一视角';
+  fpKeys.clear();
+  fpTouchMove.clear();
+  fpLookPointer = null;
+  refreshRoofButton();
+
+  if (resetCamera) {
+    camera.position.set(18.5, 16.5, 19.5);
+    controls.target.set(0, 1.05, 0);
+    controls.update();
+  }
+
+  updateRoofVisibility();
+}
+
+function interactFromFirstPerson() {
+  raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+  const hits = raycaster.intersectObjects(doorHitTargets, false);
+  const hit = hits.find((item) => item.distance <= 2.5);
+
+  if (hit?.object?.userData?.doorId) {
+    toggleDoor(hit.object.userData.doorId);
+    return;
+  }
+
+  let bestId = null;
+  let bestDistance = Infinity;
+  for (const target of doorHitTargets) {
+    const p = new THREE.Vector3();
+    target.getWorldPosition(p);
+    const d = p.distanceTo(camera.position);
+    if (d < bestDistance && d <= 2.0) {
+      bestDistance = d;
+      bestId = target.userData.doorId;
+    }
+  }
+
+  if (bestId) toggleDoor(bestId);
+}
+
+function updateFirstPerson(delta) {
+  if (!firstPerson) return;
+
+  const forward = Number(fpKeys.has('KeyW') || fpKeys.has('ArrowUp') || fpTouchMove.has('forward')) -
+    Number(fpKeys.has('KeyS') || fpKeys.has('ArrowDown') || fpTouchMove.has('back'));
+  const strafe = Number(fpKeys.has('KeyD') || fpKeys.has('ArrowRight') || fpTouchMove.has('right')) -
+    Number(fpKeys.has('KeyA') || fpKeys.has('ArrowLeft') || fpTouchMove.has('left'));
+
+  if (forward !== 0 || strafe !== 0) {
+    const length = Math.hypot(forward, strafe) || 1;
+    const f = forward / length;
+    const s = strafe / length;
+    const speed = fpMoveSpeed * Math.min(delta, 0.04);
+
+    const forwardX = -Math.sin(fpYaw);
+    const forwardZ = -Math.cos(fpYaw);
+    const rightX = Math.cos(fpYaw);
+    const rightZ = -Math.sin(fpYaw);
+
+    movePlayer(
+      (forwardX * f + rightX * s) * speed,
+      (forwardZ * f + rightZ * s) * speed
+    );
+  }
+
+  avatar.rotation.y = fpYaw;
+  syncFirstPersonCamera();
+}
+
 renderer.domElement.addEventListener('pointerdown', (event) => {
+  if (firstPerson) {
+    fpLookPointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    renderer.domElement.setPointerCapture?.(event.pointerId);
+    return;
+  }
   pointerDown = { x: event.clientX, y: event.clientY };
 });
 
+renderer.domElement.addEventListener('pointermove', (event) => {
+  if (!firstPerson || !fpLookPointer || fpLookPointer.id !== event.pointerId) return;
+
+  const dx = event.clientX - fpLookPointer.x;
+  const dy = event.clientY - fpLookPointer.y;
+  fpLookPointer.x = event.clientX;
+  fpLookPointer.y = event.clientY;
+
+  fpYaw -= dx * 0.0042;
+  fpPitch -= dy * 0.0035;
+  fpPitch = THREE.MathUtils.clamp(fpPitch, -1.18, 1.05);
+});
+
 renderer.domElement.addEventListener('pointerup', (event) => {
+  if (firstPerson) {
+    if (fpLookPointer?.id === event.pointerId) fpLookPointer = null;
+    return;
+  }
+
   if (!pointerDown) return;
   const moved = Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y);
   pointerDown = null;
@@ -547,6 +811,54 @@ renderer.domElement.addEventListener('pointerup', (event) => {
   if (id) toggleDoor(id);
 });
 
+renderer.domElement.addEventListener('pointercancel', () => {
+  fpLookPointer = null;
+  pointerDown = null;
+});
+
+window.addEventListener('keydown', (event) => {
+  if (!firstPerson) return;
+  if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
+    event.preventDefault();
+    fpKeys.add(event.code);
+  }
+  if (event.code === 'KeyE') interactFromFirstPerson();
+  if (event.code === 'Escape') exitFirstPerson();
+});
+
+window.addEventListener('keyup', (event) => {
+  fpKeys.delete(event.code);
+});
+
+for (const button of moveButtons) {
+  const direction = button.dataset.move;
+
+  const press = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    fpTouchMove.add(direction);
+  };
+
+  const release = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    fpTouchMove.delete(direction);
+  };
+
+  button.addEventListener('pointerdown', press);
+  button.addEventListener('pointerup', release);
+  button.addEventListener('pointercancel', release);
+  button.addEventListener('pointerleave', release);
+}
+
+app.querySelector('[data-fp-action="interact"]').addEventListener('click', interactFromFirstPerson);
+app.querySelector('[data-fp-action="exit"]').addEventListener('click', () => exitFirstPerson());
+
+firstPersonButton.addEventListener('click', () => {
+  if (firstPerson) exitFirstPerson();
+  else enterFirstPerson();
+});
+
 function onResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -556,7 +868,10 @@ function onResize() {
 window.addEventListener('resize', onResize);
 
 renderer.setAnimationLoop(() => {
-  controls.update();
+  const delta = clock.getDelta();
+  if (firstPerson) updateFirstPerson(delta);
+  else controls.update();
+
   doorControllers.forEach((controller) => controller.update());
   updateRoofVisibility();
   renderer.render(scene, camera);
