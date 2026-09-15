@@ -95,3 +95,30 @@ button.danger { color: #9a4a3e; }
   .tool-group { flex: 0 0 auto; }
   button { padding: 7px 8px; }
 }
+
+
+.page-switch {
+  position: fixed;
+  z-index: 6;
+  top: max(54px, calc(env(safe-area-inset-top) + 54px));
+  right: max(14px, env(safe-area-inset-right));
+  padding: 8px 11px;
+  border-radius: 10px;
+  border: 1px solid rgba(52, 73, 80, 0.18);
+  background: rgba(248, 250, 246, 0.9);
+  box-shadow: 0 10px 30px rgba(20, 60, 76, 0.14);
+  color: #31474d;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.page-switch:hover { background: #fff; }
+
+@media (max-width: 720px) {
+  .page-switch {
+    top: max(14px, env(safe-area-inset-top));
+    right: max(14px, env(safe-area-inset-right));
+  }
+}
