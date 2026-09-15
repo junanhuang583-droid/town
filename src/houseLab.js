@@ -65,7 +65,7 @@ controls.maxPolarAngle = THREE.MathUtils.degToRad(82);
 controls.target.set(0, 1.1, 0);
 
 let firstPerson = false;
-let fpYaw = 0;
+let fpYaw = -Math.PI / 2;
 let fpPitch = -0.03;
 const fpEyeHeight = 1.68;
 const fpMoveSpeed = 3.0;
@@ -170,7 +170,7 @@ avatarPart(new THREE.BoxGeometry(0.18, 0.1, 0.34), avatarShoes, -0.11, 0.12, -0.
 avatarPart(new THREE.BoxGeometry(0.18, 0.1, 0.34), avatarShoes, 0.11, 0.12, -0.08);
 avatarPart(new THREE.BoxGeometry(0.08, 0.08, 0.05), mats.black, 0, 1.73, -0.175);
 
-const playerPosition = new THREE.Vector3(-4.7, 0.6, 8.4);
+const playerPosition = new THREE.Vector3(-6.5, 0.6, -1.2);
 avatar.position.copy(playerPosition);
 
 function box(parent, width, height, depth, mat, x, y, z, rotationY = 0) {
