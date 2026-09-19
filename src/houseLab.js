@@ -8,7 +8,7 @@ const app = document.querySelector('#app');
 app.innerHTML = [
   '<div class="house-viewport" data-role="viewport"></div>',
   '<section class="house-panel">',
-  '<strong>Town · 房屋实验场 v0.5</strong>',
+  '<strong>Town · 房屋实验场 v0.6</strong>',
   '<span>单层住宅样板 · 完整写实 NPC 测试</span>',
   '<span data-role="status">高质量写实 NPC 加载中 · 屋顶显示</span>',
   '</section>',
@@ -176,8 +176,10 @@ const playerPosition = new THREE.Vector3(-6.5, 0.6, -1.2);
 avatar.position.copy(playerPosition);
 
 
-const REALISTIC_NPC_URL =
+const REALISTIC_NPC_SOURCE_URL =
   'https://three.ws/avatars/realistic-female.glb';
+const REALISTIC_NPC_URL =
+  'https://three.ws/api/glb?src=' + encodeURIComponent(REALISTIC_NPC_SOURCE_URL);
 
 function normalizeBoneName(name) {
   return String(name || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
@@ -471,15 +473,25 @@ function loadLivingRoomNpc() {
         status.textContent = '写实 NPC 验收失败 · 模型未加入场景';
       }
     },
-    undefined,
+    (event) => {
+      if (!event.total) {
+        status.textContent = '写实 NPC 下载中 · 屋顶显示';
+        return;
+      }
+      const pct = Math.min(99, Math.round((event.loaded / event.total) * 100));
+      status.textContent = '写实 NPC 下载中 ' + pct + '% · 屋顶显示';
+    },
     (error) => {
       console.error('Finished realistic living-room NPC failed to load:', error);
+      const message = String(error?.message || error || 'unknown error');
       window.__HOUSE_LAB_NPC_QA__ = {
         ok: false,
         stage: 'network-or-parse',
-        error: String(error?.message || error)
+        error: message,
+        source: REALISTIC_NPC_SOURCE_URL,
+        viaProxy: REALISTIC_NPC_URL
       };
-      status.textContent = '写实 NPC 加载失败 · 未通过验收';
+      status.textContent = '写实 NPC 加载失败 · ' + message.slice(0, 42);
     }
   );
 }
