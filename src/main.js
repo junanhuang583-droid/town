@@ -39,6 +39,7 @@ app.innerHTML = [
   '</section>',
   '<input type="file" accept="application/json,.json" data-role="file" hidden />',
   '<a class="page-switch" href="./house-lab/">房屋实验场</a>',
+  '<a class="page-switch exam-switch" href="./exam/">考试验收</a>',
   '<div class="hint">左键单击地形进行编辑 · 右键/拖动旋转 · 滚轮缩放</div>'
 ].join('');
 
