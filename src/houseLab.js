@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import './houseLab.css';
 
 const app = document.querySelector('#app');
@@ -8,7 +9,7 @@ const app = document.querySelector('#app');
 app.innerHTML = [
   '<div class="house-viewport" data-role="viewport"></div>',
   '<section class="house-panel">',
-  '<strong>Town · 房屋实验场 v0.6</strong>',
+  '<strong>Town · 房屋实验场 v0.7</strong>',
   '<span>单层住宅样板 · 完整写实 NPC 测试</span>',
   '<span data-role="status">高质量写实 NPC 加载中 · 屋顶显示</span>',
   '</section>',
@@ -353,6 +354,7 @@ function inspectNpcModel(model) {
 
 function loadLivingRoomNpc() {
   const loader = new GLTFLoader();
+  loader.setMeshoptDecoder(MeshoptDecoder);
   loader.setCrossOrigin('anonymous');
 
   loader.load(
