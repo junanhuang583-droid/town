@@ -116,7 +116,7 @@ function makePattern(kind) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   texture.magFilter = THREE.NearestFilter;
-  texture.minFilter = THREE.NearestMipMapNearestFilter;
+  texture.minFilter = THREE.NearestMipmapNearestFilter;
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }
