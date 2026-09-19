@@ -347,7 +347,7 @@ head.castShadow = true;
 player.add(head);
 box(player, 0.26, 0.12, 0.18, mats.black, 0, 1.56, 0.01);
 
-const playerPos = new THREE.Vector3(-0.45, 0.3, 7.0);
+const playerPos = new THREE.Vector3(1.7, 0.3, 6.2);
 player.position.copy(playerPos);
 const input = new Set();
 const touchInput = new Set();
