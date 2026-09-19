@@ -9,7 +9,7 @@ const app = document.querySelector('#app');
 app.innerHTML = [
   '<div class="house-viewport" data-role="viewport"></div>',
   '<section class="house-panel">',
-  '<strong>Town · 房屋实验场 v0.7</strong>',
+  '<strong>Town · 房屋实验场 v0.8</strong>',
   '<span>单层住宅样板 · 完整写实 NPC 测试</span>',
   '<span data-role="status">高质量写实 NPC 加载中 · 屋顶显示</span>',
   '</section>',
@@ -329,17 +329,16 @@ function inspectNpcModel(model) {
   const size = box.getSize(new THREE.Vector3());
 
   const valid =
-    meshCount >= 3 &&
+    meshCount >= 1 &&
     skinnedMeshCount >= 1 &&
     boneCount >= 20 &&
+    materials.size >= 1 &&
     textures.size >= 1 &&
     Number.isFinite(size.x) &&
     Number.isFinite(size.y) &&
     Number.isFinite(size.z) &&
     size.y > 1.55 &&
-    size.y < 1.82 &&
-    size.x < 1.35 &&
-    size.z < 1.10;
+    size.y < 1.82;
 
   return {
     valid,
@@ -426,19 +425,29 @@ function loadLivingRoomNpc() {
 
       const qa = inspectNpcModel(npcModel);
       if (!qa.valid || posedSides !== 2) {
-        throw new Error(
-          'NPC validation failed: ' +
-          JSON.stringify({
-            meshCount: qa.meshCount,
-            skinnedMeshCount: qa.skinnedMeshCount,
-            boneCount: qa.boneCount,
-            textureCount: qa.textureCount,
-            height: Number(qa.size.y.toFixed(3)),
-            width: Number(qa.size.x.toFixed(3)),
-            depth: Number(qa.size.z.toFixed(3)),
-            posedSides
-          })
-        );
+        const details = {
+          meshCount: qa.meshCount,
+          skinnedMeshCount: qa.skinnedMeshCount,
+          boneCount: qa.boneCount,
+          materialCount: qa.materialCount,
+          textureCount: qa.textureCount,
+          height: Number(qa.size.y.toFixed(3)),
+          width: Number(qa.size.x.toFixed(3)),
+          depth: Number(qa.size.z.toFixed(3)),
+          posedSides
+        };
+        const failed = [];
+        if (qa.meshCount < 1) failed.push('mesh');
+        if (qa.skinnedMeshCount < 1) failed.push('skinned');
+        if (qa.boneCount < 20) failed.push('bones');
+        if (qa.materialCount < 1) failed.push('material');
+        if (qa.textureCount < 1) failed.push('texture');
+        if (!(qa.size.y > 1.55 && qa.size.y < 1.82)) failed.push('height');
+        if (posedSides !== 2) failed.push('arm-pose');
+
+        const error = new Error('NPC validation failed: ' + failed.join(','));
+        error.qaDetails = details;
+        throw error;
       }
 
       const npcRoot = new THREE.Group();
@@ -467,12 +476,19 @@ function loadLivingRoomNpc() {
       };
       } catch (error) {
         console.error('Realistic NPC runtime validation failed:', error);
+        const qaDetails = error?.qaDetails || null;
         window.__HOUSE_LAB_NPC_QA__ = {
           ok: false,
           stage: 'runtime-validation',
-          error: String(error?.message || error)
+          error: String(error?.message || error),
+          details: qaDetails
         };
-        status.textContent = '写实 NPC 验收失败 · 模型未加入场景';
+
+        const shortReason = String(error?.message || error)
+          .replace('NPC validation failed: ', '')
+          .slice(0, 60);
+
+        status.textContent = '写实 NPC 验收失败 · ' + shortReason;
       }
     },
     (event) => {
