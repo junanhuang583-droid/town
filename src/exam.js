@@ -215,6 +215,23 @@ function wallZ(parent, x, z0, z1, material = mats.wall, h = WALL_H, y = h / 2 + 
   return box(parent, WALL_T, h, z1 - z0, material, x, y, (z0 + z1) / 2);
 }
 
+function gable(parent, x, material = mats.wall) {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute([
+    x, 2.73, -4,
+    x, 4.27, 0,
+    x, 2.73, 4
+  ], 3));
+  geometry.computeVertexNormals();
+  const gableMaterial = material.clone();
+  gableMaterial.side = THREE.DoubleSide;
+  const mesh = new THREE.Mesh(geometry, gableMaterial);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  parent.add(mesh);
+  return mesh;
+}
+
 function windowX(parent, cx, z, width = 1.25) {
   wallX(parent, cx - width / 2, cx + width / 2, z, mats.wall, 0.72, 0.64);
   wallX(parent, cx - width / 2, cx + width / 2, z, mats.wall, 0.55, 2.46);
@@ -250,6 +267,7 @@ windowZ(solidWallGroup, -5, -2.0, 1.35);
 wallZ(solidWallGroup, -5, -1.3, 1.0);
 windowZ(solidWallGroup, -5, 1.75, 1.35);
 wallZ(solidWallGroup, -5, 2.5, 4);
+gable(solidWallGroup, -5);
 
 // Front wall, including the only exterior door. This whole side becomes the PZ-style cutaway.
 wallX(cutawayGroup, -5, -4.25, 4);
@@ -266,6 +284,7 @@ windowZ(cutawayGroup, 5, -2.35, 1.35);
 wallZ(cutawayGroup, 5, -1.6, 0.9);
 windowZ(cutawayGroup, 5, 1.55, 1.0);
 wallZ(cutawayGroup, 5, 2.1, 4);
+gable(cutawayGroup, 5);
 
 // Interior partitions. Camera-facing pieces join the cutaway layer to keep rooms readable.
 wallX(solidWallGroup, -5, -1.25, 0, mats.wallInner);
@@ -323,12 +342,10 @@ const roofMaterials = [
 roofMaterials.forEach((m) => { m.transparent = true; m.opacity = 1; });
 const roofAngle = Math.atan2(1.55, 4.25);
 const slopeLength = Math.hypot(4.25, 1.55);
-box(roofGroup, 10.9, 0.12, slopeLength, roofMaterials[0], 0, 3.35, 2.05, -0.0).rotation.x = -roofAngle;
-box(roofGroup, 10.9, 0.12, slopeLength, roofMaterials[1], 0, 3.35, -2.05, -0.0).rotation.x = roofAngle;
-box(roofGroup, 10.95, 0.16, 0.16, roofMaterials[2], 0, 4.08, 0);
+box(roofGroup, 10.9, 0.12, slopeLength, roofMaterials[0], 0, 3.5, 2.05, -0.0).rotation.x = -roofAngle;
+box(roofGroup, 10.9, 0.12, slopeLength, roofMaterials[1], 0, 3.5, -2.05, -0.0).rotation.x = roofAngle;
+box(roofGroup, 10.95, 0.16, 0.16, roofMaterials[2], 0, 4.28, 0);
 
-// Simple chimney gives the roof one clear PZ-like silhouette break.
-box(roofGroup, 0.62, 1.1, 0.62, mats.roofEdge, 2.8, 4.15, -1.25);
 
 const player = new THREE.Group();
 scene.add(player);
