@@ -356,7 +356,8 @@ function loadLivingRoomNpc() {
   loader.load(
     REALISTIC_NPC_URL,
     (gltf) => {
-      const npcModel = gltf.scene;
+      try {
+        const npcModel = gltf.scene;
       const maxAnisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
 
       npcModel.traverse((object) => {
@@ -448,6 +449,7 @@ function loadLivingRoomNpc() {
       status.textContent = '写实 NPC 已加载 · 模型验收通过 · 门可交互';
 
       window.__HOUSE_LAB_NPC_QA__ = {
+        ok: true,
         model: 'three.ws realistic-female',
         meshCount: qa.meshCount,
         skinnedMeshCount: qa.skinnedMeshCount,
@@ -459,10 +461,24 @@ function loadLivingRoomNpc() {
         depth: Number(qa.size.z.toFixed(3)),
         relaxedArms: posedSides === 2
       };
+      } catch (error) {
+        console.error('Realistic NPC runtime validation failed:', error);
+        window.__HOUSE_LAB_NPC_QA__ = {
+          ok: false,
+          stage: 'runtime-validation',
+          error: String(error?.message || error)
+        };
+        status.textContent = '写实 NPC 验收失败 · 模型未加入场景';
+      }
     },
     undefined,
     (error) => {
       console.error('Finished realistic living-room NPC failed to load:', error);
+      window.__HOUSE_LAB_NPC_QA__ = {
+        ok: false,
+        stage: 'network-or-parse',
+        error: String(error?.message || error)
+      };
       status.textContent = '写实 NPC 加载失败 · 未通过验收';
     }
   );
