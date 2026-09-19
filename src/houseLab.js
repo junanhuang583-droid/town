@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { npcFemaleAGlbBase64 } from './assets/npcFemaleA.js';
 import './houseLab.css';
 
 const app = document.querySelector('#app');
@@ -9,9 +8,9 @@ const app = document.querySelector('#app');
 app.innerHTML = [
   '<div class="house-viewport" data-role="viewport"></div>',
   '<section class="house-panel">',
-  '<strong>Town · 房屋实验场 v0.3</strong>',
-  '<span>单层住宅样板 · NPC 模型测试</span>',
-  '<span data-role="status">屋顶显示 · 点击门可开关</span>',
+  '<strong>Town · 房屋实验场 v0.4</strong>',
+  '<span>单层住宅样板 · 写实 NPC 模型测试</span>',
+  '<span data-role="status">写实 NPC 加载中 · 屋顶显示</span>',
   '</section>',
   '<a class="back-town" href="../">返回 Town</a>',
   '<section class="house-toolbar">',
@@ -177,31 +176,36 @@ const playerPosition = new THREE.Vector3(-6.5, 0.6, -1.2);
 avatar.position.copy(playerPosition);
 
 
-function base64ToArrayBuffer(base64) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return bytes.buffer;
-}
+const REALISTIC_NPC_URL =
+  'https://raw.githubusercontent.com/kunalkushwaha/vsim/main/packages/assets/library/human.glb';
 
 function loadLivingRoomNpc() {
   const loader = new GLTFLoader();
-  loader.parse(
-    base64ToArrayBuffer(npcFemaleAGlbBase64),
-    '',
+  loader.load(
+    REALISTIC_NPC_URL,
     (gltf) => {
       const npcModel = gltf.scene;
       npcModel.traverse((object) => {
-        if (!object.isMesh) return;
+        if (!object.isMesh && !object.isSkinnedMesh) return;
         object.castShadow = true;
         object.receiveShadow = true;
+
+        // Keep the MakeHuman materials intact. GLTFLoader already restores the
+        // embedded skin texture in the correct color space.
+        if (object.material) {
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          materials.forEach((mat) => {
+            mat.needsUpdate = true;
+          });
+        }
       });
 
-      // Normalize the imported character to a believable adult height, while
-      // keeping the original Kenney model and proportions untouched.
+      // Normalize the imported MakeHuman character to a believable adult
+      // height without changing its realistic body proportions.
+      npcModel.updateMatrixWorld(true);
       const originalBox = new THREE.Box3().setFromObject(npcModel);
       const originalHeight = Math.max(0.001, originalBox.max.y - originalBox.min.y);
-      npcModel.scale.setScalar(1.68 / originalHeight);
+      npcModel.scale.setScalar(1.70 / originalHeight);
       npcModel.updateMatrixWorld(true);
 
       const scaledBox = new THREE.Box3().setFromObject(npcModel);
@@ -211,34 +215,38 @@ function loadLivingRoomNpc() {
       npcModel.position.y -= scaledBox.min.y;
 
       const npcRoot = new THREE.Group();
-      npcRoot.name = 'living-room-npc';
+      npcRoot.name = 'living-room-realistic-npc';
       npcRoot.position.set(-1.45, 0.61, 1.72);
       npcRoot.rotation.y = THREE.MathUtils.degToRad(135);
       npcRoot.add(npcModel);
       house.add(npcRoot);
-      status.textContent = 'NPC 已加载 · 屋顶显示 · 门可交互';
 
-      // Prefer the model's real idle clip. If this particular export does not
-      // expose one, freeze an existing animation near its opening pose so the
-      // first NPC test still reads as a natural standing character.
+      // MakeHuman exports in this pack include a walk clip rather than a
+      // dedicated idle. Freeze a natural walk-cycle frame so the first test is
+      // a relaxed standing model instead of a T-pose or walking in place.
       if (gltf.animations.length) {
         const mixer = new THREE.AnimationMixer(npcModel);
-        const idleClip = gltf.animations.find((clip) => /idle|static/i.test(clip.name));
-        const clip = idleClip || gltf.animations[0];
+        const idleClip = gltf.animations.find((clip) => /idle|static|stand/i.test(clip.name));
+        const walkClip = gltf.animations.find((clip) => /walk/i.test(clip.name));
+        const clip = idleClip || walkClip || gltf.animations[0];
         const action = mixer.clipAction(clip);
         action.play();
 
-        if (!idleClip) {
-          mixer.setTime(Math.min(0.18, clip.duration * 0.04));
+        if (idleClip) {
+          npcMixers.push(mixer);
+        } else {
+          mixer.setTime(Math.min(clip.duration * 0.22, 0.32));
           action.paused = true;
+          mixer.update(0);
         }
-
-        npcMixers.push(mixer);
       }
+
+      status.textContent = '写实 NPC 已加载 · 屋顶显示 · 门可交互';
     },
+    undefined,
     (error) => {
-      console.error('Living-room NPC failed to load:', error);
-      status.textContent = 'NPC 加载失败 · 请刷新页面';
+      console.error('Realistic living-room NPC failed to load:', error);
+      status.textContent = '写实 NPC 加载失败 · 请刷新页面';
     }
   );
 }
