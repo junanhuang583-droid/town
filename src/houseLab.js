@@ -8,9 +8,9 @@ const app = document.querySelector('#app');
 app.innerHTML = [
   '<div class="house-viewport" data-role="viewport"></div>',
   '<section class="house-panel">',
-  '<strong>Town · 房屋实验场 v0.4</strong>',
-  '<span>单层住宅样板 · 写实 NPC 模型测试</span>',
-  '<span data-role="status">写实 NPC 加载中 · 屋顶显示</span>',
+  '<strong>Town · 房屋实验场 v0.5</strong>',
+  '<span>单层住宅样板 · 完整写实 NPC 测试</span>',
+  '<span data-role="status">高质量写实 NPC 加载中 · 屋顶显示</span>',
   '</section>',
   '<a class="back-town" href="../">返回 Town</a>',
   '<section class="house-toolbar">',
@@ -177,70 +177,293 @@ avatar.position.copy(playerPosition);
 
 
 const REALISTIC_NPC_URL =
-  'https://raw.githubusercontent.com/kunalkushwaha/vsim/main/packages/assets/library/human.glb';
+  'https://three.ws/avatars/realistic-female.glb';
+
+function normalizeBoneName(name) {
+  return String(name || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+function findHumanoidBone(root, names) {
+  const wanted = new Set(names.map(normalizeBoneName));
+  let found = null;
+
+  root.traverse((object) => {
+    if (found || !object.isBone) return;
+    if (wanted.has(normalizeBoneName(object.name))) found = object;
+  });
+
+  return found;
+}
+
+function aimBoneAtWorldPoint(bone, child, targetPoint) {
+  if (!bone || !child || !bone.parent) return false;
+
+  bone.updateWorldMatrix(true, true);
+  child.updateWorldMatrix(true, true);
+
+  const bonePos = bone.getWorldPosition(new THREE.Vector3());
+  const childPos = child.getWorldPosition(new THREE.Vector3());
+  const currentDirection = childPos.sub(bonePos).normalize();
+  const desiredDirection = targetPoint.clone().sub(bonePos).normalize();
+
+  if (
+    !Number.isFinite(currentDirection.x) ||
+    !Number.isFinite(desiredDirection.x) ||
+    currentDirection.lengthSq() < 0.5 ||
+    desiredDirection.lengthSq() < 0.5
+  ) {
+    return false;
+  }
+
+  const worldRotation = bone.getWorldQuaternion(new THREE.Quaternion());
+  const correction = new THREE.Quaternion().setFromUnitVectors(
+    currentDirection,
+    desiredDirection
+  );
+  const desiredWorldRotation = correction.multiply(worldRotation).normalize();
+
+  const parentWorldRotation = bone.parent.getWorldQuaternion(new THREE.Quaternion());
+  bone.quaternion
+    .copy(parentWorldRotation.invert().multiply(desiredWorldRotation))
+    .normalize();
+
+  bone.updateWorldMatrix(true, true);
+  return true;
+}
+
+function relaxHumanoidArms(model) {
+  model.updateMatrixWorld(true);
+
+  const box = new THREE.Box3().setFromObject(model);
+  const height = box.max.y - box.min.y;
+  const center = box.getCenter(new THREE.Vector3());
+
+  const sides = [
+    {
+      upper: ['LeftArm', 'LeftUpperArm', 'mixamorigLeftArm'],
+      lower: ['LeftForeArm', 'LeftLowerArm', 'mixamorigLeftForeArm'],
+      hand: ['LeftHand', 'mixamorigLeftHand']
+    },
+    {
+      upper: ['RightArm', 'RightUpperArm', 'mixamorigRightArm'],
+      lower: ['RightForeArm', 'RightLowerArm', 'mixamorigRightForeArm'],
+      hand: ['RightHand', 'mixamorigRightHand']
+    }
+  ];
+
+  let posedSides = 0;
+
+  for (const side of sides) {
+    const upper = findHumanoidBone(model, side.upper);
+    const lower = findHumanoidBone(model, side.lower);
+    const hand = findHumanoidBone(model, side.hand);
+    if (!upper || !lower || !hand) continue;
+
+    const upperPos = upper.getWorldPosition(new THREE.Vector3());
+    const sign = Math.sign(upperPos.x - center.x) || 1;
+
+    // A quiet standing pose: elbows hang below the rib cage and wrists rest
+    // beside the hips. This removes the stock bind/A-pose without inventing an
+    // animation system for the first visual test.
+    const elbowTarget = new THREE.Vector3(
+      center.x + sign * height * 0.19,
+      box.min.y + height * 0.60,
+      center.z + height * 0.015
+    );
+    const wristTarget = new THREE.Vector3(
+      center.x + sign * height * 0.20,
+      box.min.y + height * 0.405,
+      center.z + height * 0.025
+    );
+
+    const upperOk = aimBoneAtWorldPoint(upper, lower, elbowTarget);
+    model.updateMatrixWorld(true);
+    const lowerOk = aimBoneAtWorldPoint(lower, hand, wristTarget);
+    model.updateMatrixWorld(true);
+
+    if (upperOk && lowerOk) posedSides += 1;
+  }
+
+  return posedSides;
+}
+
+function inspectNpcModel(model) {
+  const materials = new Set();
+  const textures = new Set();
+  let meshCount = 0;
+  let skinnedMeshCount = 0;
+  let boneCount = 0;
+
+  model.traverse((object) => {
+    if (object.isBone) boneCount += 1;
+    if (!object.isMesh && !object.isSkinnedMesh) return;
+
+    meshCount += 1;
+    if (object.isSkinnedMesh) skinnedMeshCount += 1;
+
+    const list = Array.isArray(object.material)
+      ? object.material
+      : object.material
+        ? [object.material]
+        : [];
+
+    list.forEach((material) => {
+      materials.add(material);
+      [
+        material.map,
+        material.normalMap,
+        material.roughnessMap,
+        material.metalnessMap,
+        material.alphaMap,
+        material.emissiveMap
+      ].forEach((texture) => {
+        if (texture) textures.add(texture);
+      });
+    });
+  });
+
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+
+  const valid =
+    meshCount >= 3 &&
+    skinnedMeshCount >= 1 &&
+    boneCount >= 20 &&
+    textures.size >= 1 &&
+    Number.isFinite(size.x) &&
+    Number.isFinite(size.y) &&
+    Number.isFinite(size.z) &&
+    size.y > 1.55 &&
+    size.y < 1.82 &&
+    size.x < 1.35 &&
+    size.z < 1.10;
+
+  return {
+    valid,
+    meshCount,
+    skinnedMeshCount,
+    boneCount,
+    materialCount: materials.size,
+    textureCount: textures.size,
+    size
+  };
+}
 
 function loadLivingRoomNpc() {
   const loader = new GLTFLoader();
+  loader.setCrossOrigin('anonymous');
+
   loader.load(
     REALISTIC_NPC_URL,
     (gltf) => {
       const npcModel = gltf.scene;
+      const maxAnisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+
       npcModel.traverse((object) => {
         if (!object.isMesh && !object.isSkinnedMesh) return;
+
         object.castShadow = true;
         object.receiveShadow = true;
 
-        // Keep the MakeHuman materials intact. GLTFLoader already restores the
-        // embedded skin texture in the correct color space.
-        if (object.material) {
-          const materials = Array.isArray(object.material) ? object.material : [object.material];
-          materials.forEach((mat) => {
-            mat.needsUpdate = true;
+        const list = Array.isArray(object.material)
+          ? object.material
+          : object.material
+            ? [object.material]
+            : [];
+
+        list.forEach((material) => {
+          [
+            material.map,
+            material.normalMap,
+            material.roughnessMap,
+            material.metalnessMap,
+            material.alphaMap,
+            material.emissiveMap
+          ].forEach((texture) => {
+            if (texture) texture.anisotropy = maxAnisotropy;
           });
-        }
+
+          material.needsUpdate = true;
+        });
       });
 
-      // Normalize the imported MakeHuman character to a believable adult
-      // height without changing its realistic body proportions.
+      // First normalize only the overall height. Do not reshape the body.
       npcModel.updateMatrixWorld(true);
       const originalBox = new THREE.Box3().setFromObject(npcModel);
-      const originalHeight = Math.max(0.001, originalBox.max.y - originalBox.min.y);
+      const originalHeight = originalBox.max.y - originalBox.min.y;
+
+      if (!Number.isFinite(originalHeight) || originalHeight < 0.25) {
+        throw new Error('NPC model has an invalid bounding box.');
+      }
+
       npcModel.scale.setScalar(1.70 / originalHeight);
       npcModel.updateMatrixWorld(true);
 
-      const scaledBox = new THREE.Box3().setFromObject(npcModel);
-      const center = scaledBox.getCenter(new THREE.Vector3());
+      // Centre the authored avatar around its own feet before posing it.
+      let scaledBox = new THREE.Box3().setFromObject(npcModel);
+      let center = scaledBox.getCenter(new THREE.Vector3());
       npcModel.position.x -= center.x;
       npcModel.position.z -= center.z;
       npcModel.position.y -= scaledBox.min.y;
+      npcModel.updateMatrixWorld(true);
+
+      // The source avatar is a standard rigged humanoid. For this first test we
+      // need a believable *standing* person, not its stock bind pose.
+      const posedSides = relaxHumanoidArms(npcModel);
+
+      // Re-ground after the arm pose because the full bounding box changed.
+      scaledBox = new THREE.Box3().setFromObject(npcModel);
+      center = scaledBox.getCenter(new THREE.Vector3());
+      npcModel.position.x -= center.x;
+      npcModel.position.z -= center.z;
+      npcModel.position.y -= scaledBox.min.y;
+      npcModel.updateMatrixWorld(true);
+
+      const qa = inspectNpcModel(npcModel);
+      if (!qa.valid || posedSides !== 2) {
+        throw new Error(
+          'NPC validation failed: ' +
+          JSON.stringify({
+            meshCount: qa.meshCount,
+            skinnedMeshCount: qa.skinnedMeshCount,
+            boneCount: qa.boneCount,
+            textureCount: qa.textureCount,
+            height: Number(qa.size.y.toFixed(3)),
+            width: Number(qa.size.x.toFixed(3)),
+            depth: Number(qa.size.z.toFixed(3)),
+            posedSides
+          })
+        );
+      }
 
       const npcRoot = new THREE.Group();
-      npcRoot.name = 'living-room-realistic-npc';
-      npcRoot.position.set(-1.45, 0.61, 1.72);
-      npcRoot.rotation.y = THREE.MathUtils.degToRad(135);
+      npcRoot.name = 'living-room-realistic-npc-v05';
+      npcRoot.position.set(-1.65, 0.61, 2.05);
+      npcRoot.rotation.y = THREE.MathUtils.degToRad(145);
       npcRoot.add(npcModel);
       house.add(npcRoot);
 
-      // First pass is deliberately static. Use the real idle clip only to
-      // obtain a natural standing pose, then freeze it.
-      if (gltf.animations.length) {
-        const mixer = new THREE.AnimationMixer(npcModel);
-        const idleClip = gltf.animations.find((clip) => /idle|static|stand/i.test(clip.name));
-        const walkClip = gltf.animations.find((clip) => /walk/i.test(clip.name));
-        const clip = idleClip || walkClip || gltf.animations[0];
-        const action = mixer.clipAction(clip);
-        action.play();
-        mixer.setTime(Math.min(clip.duration * 0.18, 0.28));
-        action.paused = true;
-        mixer.update(0);
-      }
+      // Leave the first version deliberately static. The point of v0.5 is to
+      // judge the finished character model itself before adding behaviour.
+      status.textContent = '写实 NPC 已加载 · 模型验收通过 · 门可交互';
 
-      status.textContent = '写实 NPC 已加载 · 屋顶显示 · 门可交互';
+      window.__HOUSE_LAB_NPC_QA__ = {
+        model: 'three.ws realistic-female',
+        meshCount: qa.meshCount,
+        skinnedMeshCount: qa.skinnedMeshCount,
+        boneCount: qa.boneCount,
+        materialCount: qa.materialCount,
+        textureCount: qa.textureCount,
+        height: Number(qa.size.y.toFixed(3)),
+        width: Number(qa.size.x.toFixed(3)),
+        depth: Number(qa.size.z.toFixed(3)),
+        relaxedArms: posedSides === 2
+      };
     },
     undefined,
     (error) => {
-      console.error('Realistic living-room NPC failed to load:', error);
-      status.textContent = '写实 NPC 加载失败 · 请刷新页面';
+      console.error('Finished realistic living-room NPC failed to load:', error);
+      status.textContent = '写实 NPC 加载失败 · 未通过验收';
     }
   );
 }
