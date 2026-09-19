@@ -221,9 +221,8 @@ function loadLivingRoomNpc() {
       npcRoot.add(npcModel);
       house.add(npcRoot);
 
-      // MakeHuman exports in this pack include a walk clip rather than a
-      // dedicated idle. Freeze a natural walk-cycle frame so the first test is
-      // a relaxed standing model instead of a T-pose or walking in place.
+      // First pass is deliberately static. Use the real idle clip only to
+      // obtain a natural standing pose, then freeze it.
       if (gltf.animations.length) {
         const mixer = new THREE.AnimationMixer(npcModel);
         const idleClip = gltf.animations.find((clip) => /idle|static|stand/i.test(clip.name));
@@ -231,14 +230,9 @@ function loadLivingRoomNpc() {
         const clip = idleClip || walkClip || gltf.animations[0];
         const action = mixer.clipAction(clip);
         action.play();
-
-        if (idleClip) {
-          npcMixers.push(mixer);
-        } else {
-          mixer.setTime(Math.min(clip.duration * 0.22, 0.32));
-          action.paused = true;
-          mixer.update(0);
-        }
+        mixer.setTime(Math.min(clip.duration * 0.18, 0.28));
+        action.paused = true;
+        mixer.update(0);
       }
 
       status.textContent = '写实 NPC 已加载 · 屋顶显示 · 门可交互';
