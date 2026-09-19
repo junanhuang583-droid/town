@@ -122,3 +122,13 @@ button.danger { color: #9a4a3e; }
     right: max(14px, env(safe-area-inset-right));
   }
 }
+
+.exam-switch {
+  top: max(94px, calc(env(safe-area-inset-top) + 94px));
+}
+
+@media (max-width: 720px) {
+  .exam-switch {
+    top: max(54px, calc(env(safe-area-inset-top) + 54px));
+  }
+}
