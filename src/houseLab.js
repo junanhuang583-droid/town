@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { npcFemaleAGlbBase64, npcFemaleAColormapDataUri } from './assets/npcFemaleA.js';
 import './houseLab.css';
 
 const app = document.querySelector('#app');
@@ -74,6 +76,7 @@ const fpKeys = new Set();
 const fpTouchMove = new Set();
 let fpLookPointer = null;
 const clock = new THREE.Clock();
+const npcMixers = [];
 
 scene.add(new THREE.HemisphereLight(0xffffff, 0x687077, 2.05));
 
@@ -172,6 +175,79 @@ avatarPart(new THREE.BoxGeometry(0.08, 0.08, 0.05), mats.black, 0, 1.73, -0.175)
 
 const playerPosition = new THREE.Vector3(-6.5, 0.6, -1.2);
 avatar.position.copy(playerPosition);
+
+
+function base64ToArrayBuffer(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function loadLivingRoomNpc() {
+  const manager = new THREE.LoadingManager();
+  manager.setURLModifier((url) => {
+    if (url.includes('colormap.png')) return npcFemaleAColormapDataUri;
+    return url;
+  });
+
+  const loader = new GLTFLoader(manager);
+  loader.parse(
+    base64ToArrayBuffer(npcFemaleAGlbBase64),
+    '',
+    (gltf) => {
+      const npcModel = gltf.scene;
+      npcModel.traverse((object) => {
+        if (!object.isMesh) return;
+        object.castShadow = true;
+        object.receiveShadow = true;
+      });
+
+      // Normalize the imported character to a believable adult height, while
+      // keeping the original Kenney model and proportions untouched.
+      const originalBox = new THREE.Box3().setFromObject(npcModel);
+      const originalHeight = Math.max(0.001, originalBox.max.y - originalBox.min.y);
+      npcModel.scale.setScalar(1.68 / originalHeight);
+      npcModel.updateMatrixWorld(true);
+
+      const scaledBox = new THREE.Box3().setFromObject(npcModel);
+      const center = scaledBox.getCenter(new THREE.Vector3());
+      npcModel.position.x -= center.x;
+      npcModel.position.z -= center.z;
+      npcModel.position.y -= scaledBox.min.y;
+
+      const npcRoot = new THREE.Group();
+      npcRoot.name = 'living-room-npc';
+      npcRoot.position.set(-1.55, 0.61, 1.65);
+      npcRoot.rotation.y = THREE.MathUtils.degToRad(135);
+      npcRoot.add(npcModel);
+      house.add(npcRoot);
+
+      // Prefer the model's real idle clip. If this particular export does not
+      // expose one, freeze an existing animation near its opening pose so the
+      // first NPC test still reads as a natural standing character.
+      if (gltf.animations.length) {
+        const mixer = new THREE.AnimationMixer(npcModel);
+        const idleClip = gltf.animations.find((clip) => /idle|static/i.test(clip.name));
+        const clip = idleClip || gltf.animations[0];
+        const action = mixer.clipAction(clip);
+        action.play();
+
+        if (!idleClip) {
+          mixer.setTime(Math.min(0.18, clip.duration * 0.04));
+          action.paused = true;
+        }
+
+        npcMixers.push(mixer);
+      }
+    },
+    (error) => {
+      console.error('Living-room NPC failed to load:', error);
+    }
+  );
+}
+
+loadLivingRoomNpc();
 
 function box(parent, width, height, depth, mat, x, y, z, rotationY = 0) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mat);
@@ -875,6 +951,8 @@ window.addEventListener('resize', onResize);
 
 renderer.setAnimationLoop(() => {
   const delta = clock.getDelta();
+  npcMixers.forEach((mixer) => mixer.update(delta));
+
   if (firstPerson) updateFirstPerson(delta);
   else controls.update();
 
