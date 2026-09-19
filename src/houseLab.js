@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { npcFemaleAGlbBase64, npcFemaleAColormapDataUri } from './assets/npcFemaleA.js';
+import { npcFemaleAGlbBase64 } from './assets/npcFemaleA.js';
 import './houseLab.css';
 
 const app = document.querySelector('#app');
@@ -9,8 +9,8 @@ const app = document.querySelector('#app');
 app.innerHTML = [
   '<div class="house-viewport" data-role="viewport"></div>',
   '<section class="house-panel">',
-  '<strong>Town · 房屋实验场 v0.2</strong>',
-  '<span>单层住宅样板 · 支持第一视角参观</span>',
+  '<strong>Town · 房屋实验场 v0.3</strong>',
+  '<span>单层住宅样板 · NPC 模型测试</span>',
   '<span data-role="status">屋顶显示 · 点击门可开关</span>',
   '</section>',
   '<a class="back-town" href="../">返回 Town</a>',
@@ -185,13 +185,7 @@ function base64ToArrayBuffer(base64) {
 }
 
 function loadLivingRoomNpc() {
-  const manager = new THREE.LoadingManager();
-  manager.setURLModifier((url) => {
-    if (url.includes('colormap.png')) return npcFemaleAColormapDataUri;
-    return url;
-  });
-
-  const loader = new GLTFLoader(manager);
+  const loader = new GLTFLoader();
   loader.parse(
     base64ToArrayBuffer(npcFemaleAGlbBase64),
     '',
@@ -218,10 +212,11 @@ function loadLivingRoomNpc() {
 
       const npcRoot = new THREE.Group();
       npcRoot.name = 'living-room-npc';
-      npcRoot.position.set(-1.55, 0.61, 1.65);
+      npcRoot.position.set(-1.45, 0.61, 1.72);
       npcRoot.rotation.y = THREE.MathUtils.degToRad(135);
       npcRoot.add(npcModel);
       house.add(npcRoot);
+      status.textContent = 'NPC 已加载 · 屋顶显示 · 门可交互';
 
       // Prefer the model's real idle clip. If this particular export does not
       // expose one, freeze an existing animation near its opening pose so the
@@ -243,6 +238,7 @@ function loadLivingRoomNpc() {
     },
     (error) => {
       console.error('Living-room NPC failed to load:', error);
+      status.textContent = 'NPC 加载失败 · 请刷新页面';
     }
   );
 }
