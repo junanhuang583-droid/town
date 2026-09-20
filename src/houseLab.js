@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { AnimationManager } from '@three-ws/retarget';
 import './houseLab.css';
 
 const app = document.querySelector('#app');
@@ -9,8 +10,8 @@ const app = document.querySelector('#app');
 app.innerHTML = [
   '<div class="house-viewport" data-role="viewport"></div>',
   '<section class="house-panel">',
-  '<strong>Town · 房屋实验场 v1.1</strong>',
-  '<span>单层住宅样板 · 写实 NPC 漫步动作测试 / Q版鲸鱼娘</span>',
+  '<strong>Town · 房屋实验场 v1.2</strong>',
+  '<span>单层住宅样板 · 写实 NPC Mixamo 动画测试 / Q版鲸鱼娘</span>',
   '<span data-role="status">高质量写实 NPC 加载中 · 屋顶显示</span>',
   '<span data-role="whale-status">鲸鱼娘：生成中</span>',
   '</section>',
@@ -19,7 +20,7 @@ app.innerHTML = [
   '<button data-action="first-person">第一视角</button>',
   '<button data-action="roof">屋顶：自动</button>',
   '<button data-action="doors">全部开门</button>',
-  '<button data-action="npc-motion">NPC 漫步：开</button>',
+  '<button data-action="npc-motion">NPC Mixamo：开</button>',
   '</section>',
   '<div class="fp-crosshair" aria-hidden="true">+</div>',
   '<section class="fp-controls" aria-label="第一视角控制">',
@@ -79,7 +80,6 @@ const fpKeys = new Set();
 const fpTouchMove = new Set();
 let fpLookPointer = null;
 const clock = new THREE.Clock();
-const npcMixers = [];
 let livingRoomNpcController = null;
 let npcMotionEnabled = true;
 
@@ -357,189 +357,78 @@ function inspectNpcModel(model) {
 }
 
 
-function captureNpcMotionRig(model) {
-  const bones = {
-    leftUpperArm: findHumanoidBone(model, ['LeftArm', 'LeftUpperArm', 'mixamorigLeftArm']),
-    leftLowerArm: findHumanoidBone(model, ['LeftForeArm', 'LeftLowerArm', 'mixamorigLeftForeArm']),
-    leftHand: findHumanoidBone(model, ['LeftHand', 'mixamorigLeftHand']),
-    rightUpperArm: findHumanoidBone(model, ['RightArm', 'RightUpperArm', 'mixamorigRightArm']),
-    rightLowerArm: findHumanoidBone(model, ['RightForeArm', 'RightLowerArm', 'mixamorigRightForeArm']),
-    rightHand: findHumanoidBone(model, ['RightHand', 'mixamorigRightHand']),
-    leftUpperLeg: findHumanoidBone(model, ['LeftUpLeg', 'LeftUpperLeg', 'mixamorigLeftUpLeg', 'mixamorigLeftUpperLeg']),
-    leftLowerLeg: findHumanoidBone(model, ['LeftLeg', 'LeftLowerLeg', 'mixamorigLeftLeg', 'mixamorigLeftLowerLeg']),
-    leftFoot: findHumanoidBone(model, ['LeftFoot', 'mixamorigLeftFoot']),
-    rightUpperLeg: findHumanoidBone(model, ['RightUpLeg', 'RightUpperLeg', 'mixamorigRightUpLeg', 'mixamorigRightUpperLeg']),
-    rightLowerLeg: findHumanoidBone(model, ['RightLeg', 'RightLowerLeg', 'mixamorigRightLeg', 'mixamorigRightLowerLeg']),
-    rightFoot: findHumanoidBone(model, ['RightFoot', 'mixamorigRightFoot']),
-    spine: findHumanoidBone(model, ['Spine', 'Spine1', 'mixamorigSpine', 'mixamorigSpine1']),
-    neck: findHumanoidBone(model, ['Neck', 'mixamorigNeck']),
-    head: findHumanoidBone(model, ['Head', 'mixamorigHead'])
-  };
+const MIXAMO_ANIMATION_DEFS = Object.freeze([
+  {
+    name: 'soldier-idle',
+    url: 'https://three.ws/animations/clips/soldier-idle.json',
+    loop: true
+  },
+  {
+    name: 'soldier-walk',
+    url: 'https://three.ws/animations/clips/soldier-walk.json',
+    loop: true
+  }
+]);
 
-  const base = new Map();
-  Object.values(bones).forEach((bone) => {
-    if (bone) base.set(bone, bone.quaternion.clone());
+async function createLivingRoomNpcController(npcRoot, npcModel) {
+  const manager = new AnimationManager();
+  manager.attach(npcModel, {
+    avatarId: 'town-realistic-female',
+    avatarUrl: REALISTIC_NPC_SOURCE_URL
   });
 
-  return { bones, base };
-}
+  if (!manager.supportsCanonicalClips()) {
+    manager.dispose();
+    throw new Error('NPC rig cannot accept Mixamo locomotion clips');
+  }
 
-function restoreNpcMotionRig(rig) {
-  rig.base.forEach((quaternion, bone) => {
-    bone.quaternion.copy(quaternion);
-  });
-}
+  manager.setAnimationDefs(MIXAMO_ANIMATION_DEFS);
+  await manager.loadAll();
+  await manager.crossfadeTo('soldier-idle', 0);
 
-function npcLocalPointToWorld(root, x, y, z) {
-  return root.localToWorld(new THREE.Vector3(x, y, z));
-}
-
-function createLivingRoomNpcController(npcRoot, npcModel, gltf) {
-  const rig = captureNpcMotionRig(npcModel);
-  const walkBonesReady =
-    rig.bones.leftUpperLeg &&
-    rig.bones.leftLowerLeg &&
-    rig.bones.leftFoot &&
-    rig.bones.rightUpperLeg &&
-    rig.bones.rightLowerLeg &&
-    rig.bones.rightFoot;
-
-  const waveBonesReady =
-    rig.bones.rightUpperArm &&
-    rig.bones.rightLowerArm &&
-    rig.bones.rightHand;
-
+  // These are deliberately placed only in the clear part of the living room.
+  // The model is animated by real retargeted Mixamo locomotion; code only moves
+  // the character root between waypoints and never bends limbs by hand.
   const waypoints = [
     new THREE.Vector3(-1.05, 0.61, 3.0),
     new THREE.Vector3(-1.9, 0.61, 4.0),
     new THREE.Vector3(-4.65, 0.61, 4.0),
-    new THREE.Vector3(-6.45, 0.61, 3.15),
-    new THREE.Vector3(-5.65, 0.61, 2.45),
-    new THREE.Vector3(-3.2, 0.61, 2.5)
+    new THREE.Vector3(-6.35, 0.61, 3.15),
+    new THREE.Vector3(-5.5, 0.61, 2.45),
+    new THREE.Vector3(-3.15, 0.61, 2.55)
   ];
 
   npcRoot.position.copy(waypoints[0]);
 
-  const clips = Array.isArray(gltf.animations) ? gltf.animations : [];
-  const walkClip =
-    clips.find((clip) => /(^|[^a-z])(walk|walking|locomotion)([^a-z]|$)/i.test(clip.name || '')) ||
-    null;
-
-  let walkMixer = null;
-  let walkAction = null;
-  if (walkClip) {
-    walkMixer = new THREE.AnimationMixer(npcModel);
-    walkAction = walkMixer.clipAction(walkClip);
-    walkAction.setLoop(THREE.LoopRepeat, Infinity);
-    walkAction.play();
-    npcMixers.push(walkMixer);
-  }
-
-  const baseModelY = npcModel.position.y;
   const direction = new THREE.Vector3();
   let waypointIndex = 1;
-  let waiting = 0;
-  let waveTime = 0;
-  let walkingPhase = 0;
-  let isWalking = true;
-  let facingOffset = THREE.MathUtils.degToRad(190);
+  let waiting = 0.7;
+  let state = 'idle';
+  const facingOffset = THREE.MathUtils.degToRad(190);
 
-  function setWalkClipActive(active) {
-    if (!walkAction) return;
-    walkAction.paused = !active;
-    walkAction.enabled = true;
-    walkAction.setEffectiveWeight(active ? 1 : 0);
-  }
-
-  function applyProceduralWalk(elapsed) {
-    if (walkClip || !walkBonesReady) return;
-
-    restoreNpcMotionRig(rig);
-    npcModel.updateMatrixWorld(true);
-
-    const cycle = Math.sin(elapsed * 7.0);
-    const opposite = -cycle;
-    const liftL = Math.max(0, cycle) * 0.055;
-    const liftR = Math.max(0, opposite) * 0.055;
-
-    const leftKnee = npcLocalPointToWorld(npcRoot, -0.105, 0.48, cycle * 0.105);
-    const rightKnee = npcLocalPointToWorld(npcRoot, 0.105, 0.48, opposite * 0.105);
-    const leftFoot = npcLocalPointToWorld(npcRoot, -0.105, 0.08 + liftL, opposite * 0.075);
-    const rightFoot = npcLocalPointToWorld(npcRoot, 0.105, 0.08 + liftR, cycle * 0.075);
-
-    aimBoneAtWorldPoint(rig.bones.leftUpperLeg, rig.bones.leftLowerLeg, leftKnee);
-    npcModel.updateMatrixWorld(true);
-    aimBoneAtWorldPoint(rig.bones.leftLowerLeg, rig.bones.leftFoot, leftFoot);
-    npcModel.updateMatrixWorld(true);
-    aimBoneAtWorldPoint(rig.bones.rightUpperLeg, rig.bones.rightLowerLeg, rightKnee);
-    npcModel.updateMatrixWorld(true);
-    aimBoneAtWorldPoint(rig.bones.rightLowerLeg, rig.bones.rightFoot, rightFoot);
-    npcModel.updateMatrixWorld(true);
-
-    if (
-      rig.bones.leftUpperArm && rig.bones.leftLowerArm && rig.bones.leftHand &&
-      rig.bones.rightUpperArm && rig.bones.rightLowerArm && rig.bones.rightHand
-    ) {
-      const leftElbow = npcLocalPointToWorld(npcRoot, -0.22, 1.03, opposite * 0.055);
-      const rightElbow = npcLocalPointToWorld(npcRoot, 0.22, 1.03, cycle * 0.055);
-      const leftHand = npcLocalPointToWorld(npcRoot, -0.22, 0.78, opposite * 0.14);
-      const rightHand = npcLocalPointToWorld(npcRoot, 0.22, 0.78, cycle * 0.14);
-
-      aimBoneAtWorldPoint(rig.bones.leftUpperArm, rig.bones.leftLowerArm, leftElbow);
-      npcModel.updateMatrixWorld(true);
-      aimBoneAtWorldPoint(rig.bones.leftLowerArm, rig.bones.leftHand, leftHand);
-      npcModel.updateMatrixWorld(true);
-      aimBoneAtWorldPoint(rig.bones.rightUpperArm, rig.bones.rightLowerArm, rightElbow);
-      npcModel.updateMatrixWorld(true);
-      aimBoneAtWorldPoint(rig.bones.rightLowerArm, rig.bones.rightHand, rightHand);
-      npcModel.updateMatrixWorld(true);
+  async function setState(next) {
+    if (state === next) return;
+    state = next;
+    const clip = next === 'walk' ? 'soldier-walk' : 'soldier-idle';
+    try {
+      await manager.crossfadeTo(clip, next === 'walk' ? 0.18 : 0.24);
+    } catch (error) {
+      console.warn('NPC Mixamo crossfade failed:', error);
     }
-
-    npcModel.position.y = baseModelY + Math.abs(Math.sin(elapsed * 7.0)) * 0.018;
   }
 
-  function applyWave(elapsed) {
-    restoreNpcMotionRig(rig);
-    npcModel.position.y = baseModelY;
-    npcModel.updateMatrixWorld(true);
-    if (!waveBonesReady) return;
+  function update(delta) {
+    manager.update(delta);
 
-    const wave = Math.sin(elapsed * 8.5) * 0.085;
-    const elbowTarget = npcLocalPointToWorld(npcRoot, 0.29, 1.30, 0.015);
-    const handTarget = npcLocalPointToWorld(npcRoot, 0.34 + wave, 1.61, 0.025);
-
-    aimBoneAtWorldPoint(rig.bones.rightUpperArm, rig.bones.rightLowerArm, elbowTarget);
-    npcModel.updateMatrixWorld(true);
-    aimBoneAtWorldPoint(rig.bones.rightLowerArm, rig.bones.rightHand, handTarget);
-    npcModel.updateMatrixWorld(true);
-  }
-
-  function settlePose() {
-    restoreNpcMotionRig(rig);
-    npcModel.position.y += (baseModelY - npcModel.position.y) * 0.25;
-  }
-
-  function update(delta, elapsed) {
     if (!npcMotionEnabled) {
-      setWalkClipActive(false);
-      settlePose();
+      void setState('idle');
       return;
     }
 
     if (waiting > 0) {
       waiting -= delta;
-      setWalkClipActive(false);
-      if (waveTime > 0) {
-        waveTime -= delta;
-        applyWave(elapsed);
-      } else {
-        settlePose();
-      }
-
-      if (waiting <= 0) {
-        waypointIndex = (waypointIndex + 1) % waypoints.length;
-        isWalking = true;
-      }
+      void setState('idle');
+      if (waiting <= 0) waypointIndex = (waypointIndex + 1) % waypoints.length;
       return;
     }
 
@@ -549,47 +438,40 @@ function createLivingRoomNpcController(npcRoot, npcModel, gltf) {
       0,
       target.z - npcRoot.position.z
     );
-    const distance = direction.length();
 
-    if (distance < 0.075) {
-      waiting = waypointIndex % 2 === 0 ? 1.9 : 1.15;
-      waveTime = waypointIndex % 2 === 0 ? 1.35 : 0;
-      isWalking = false;
-      setWalkClipActive(false);
-      settlePose();
+    const distance = direction.length();
+    if (distance < 0.08) {
+      waiting = waypointIndex % 2 === 0 ? 1.8 : 1.0;
+      void setState('idle');
       return;
     }
 
     direction.normalize();
     const speed = 0.72;
-    npcRoot.position.x += direction.x * speed * delta;
-    npcRoot.position.z += direction.z * speed * delta;
+    npcRoot.position.addScaledVector(direction, speed * delta);
 
     const desiredYaw = Math.atan2(direction.x, direction.z) + facingOffset;
     const yawDelta = Math.atan2(
       Math.sin(desiredYaw - npcRoot.rotation.y),
       Math.cos(desiredYaw - npcRoot.rotation.y)
     );
-    npcRoot.rotation.y += yawDelta * Math.min(1, delta * 7.5);
+    npcRoot.rotation.y += yawDelta * Math.min(1, delta * 7.0);
 
-    walkingPhase += delta;
-    setWalkClipActive(true);
-    applyProceduralWalk(elapsed);
+    void setState('walk');
   }
 
   return {
     update,
-    clips: clips.map((clip) => clip.name || '(unnamed)'),
-    walkClip: walkClip?.name || null,
-    walkBonesReady: !!walkBonesReady,
-    waveBonesReady: !!waveBonesReady,
     setEnabled(value) {
       npcMotionEnabled = value;
-      if (!value) {
-        setWalkClipActive(false);
-        settlePose();
-      }
-    }
+      if (!value) void setState('idle');
+    },
+    dispose() {
+      manager.dispose();
+    },
+    source: 'Mixamo Soldier Idle/Walk via three.ws retargeted clip library',
+    clips: ['soldier-idle', 'soldier-walk'],
+    proceduralBones: false
   };
 }
 
@@ -600,7 +482,7 @@ function loadLivingRoomNpc() {
 
   loader.load(
     REALISTIC_NPC_URL,
-    (gltf) => {
+    async (gltf) => {
       try {
         const npcModel = gltf.scene;
       const maxAnisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
@@ -653,20 +535,10 @@ function loadLivingRoomNpc() {
       npcModel.position.y -= scaledBox.min.y;
       npcModel.updateMatrixWorld(true);
 
-      // The source avatar is a standard rigged humanoid. For this first test we
-      // need a believable *standing* person, not its stock bind pose.
-      const posedSides = relaxHumanoidArms(npcModel);
-
-      // Re-ground after the arm pose because the full bounding box changed.
-      scaledBox = new THREE.Box3().setFromObject(npcModel);
-      center = scaledBox.getCenter(new THREE.Vector3());
-      npcModel.position.x -= center.x;
-      npcModel.position.z -= center.z;
-      npcModel.position.y -= scaledBox.min.y;
-      npcModel.updateMatrixWorld(true);
-
+      // Keep the authored bind/rest pose untouched. The retarget runtime needs
+      // that real rest frame to map Mixamo animation safely onto this skeleton.
       const qa = inspectNpcModel(npcModel);
-      if (!qa.valid || posedSides !== 2) {
+      if (!qa.valid) {
         const details = {
           meshCount: qa.meshCount,
           skinnedMeshCount: qa.skinnedMeshCount,
@@ -675,19 +547,9 @@ function loadLivingRoomNpc() {
           textureCount: qa.textureCount,
           height: Number(qa.size.y.toFixed(3)),
           width: Number(qa.size.x.toFixed(3)),
-          depth: Number(qa.size.z.toFixed(3)),
-          posedSides
+          depth: Number(qa.size.z.toFixed(3))
         };
-        const failed = [];
-        if (qa.meshCount < 1) failed.push('mesh');
-        if (qa.skinnedMeshCount < 1) failed.push('skinned');
-        if (qa.boneCount < 20) failed.push('bones');
-        if (qa.materialCount < 1) failed.push('material');
-        if (qa.textureCount < 1) failed.push('texture');
-        if (!(qa.size.y > 1.55 && qa.size.y < 1.82)) failed.push('height');
-        if (posedSides !== 2) failed.push('arm-pose');
-
-        const error = new Error('NPC validation failed: ' + failed.join(','));
+        const error = new Error('NPC validation failed before Mixamo retarget');
         error.qaDetails = details;
         throw error;
       }
@@ -699,8 +561,8 @@ function loadLivingRoomNpc() {
       npcRoot.add(npcModel);
       house.add(npcRoot);
 
-      livingRoomNpcController = createLivingRoomNpcController(npcRoot, npcModel, gltf);
-      status.textContent = '写实 NPC 已加载 · 客厅自动漫步 / 偶尔挥手 · 门可交互';
+      livingRoomNpcController = await createLivingRoomNpcController(npcRoot, npcModel);
+      status.textContent = '写实 NPC 已加载 · Mixamo Idle/Walk · 客厅自动漫步';
 
       window.__HOUSE_LAB_NPC_QA__ = {
         ok: true,
@@ -713,13 +575,10 @@ function loadLivingRoomNpc() {
         height: Number(qa.size.y.toFixed(3)),
         width: Number(qa.size.x.toFixed(3)),
         depth: Number(qa.size.z.toFixed(3)),
-        relaxedArms: posedSides === 2,
         motionTest: true,
-        embeddedClips: livingRoomNpcController?.clips || [],
-        walkClip: livingRoomNpcController?.walkClip || null,
-        proceduralWalkFallback: !livingRoomNpcController?.walkClip,
-        walkBonesReady: !!livingRoomNpcController?.walkBonesReady,
-        waveBonesReady: !!livingRoomNpcController?.waveBonesReady
+        animationSource: livingRoomNpcController?.source || null,
+        clips: livingRoomNpcController?.clips || [],
+        proceduralBones: false
       };
       } catch (error) {
         console.error('Realistic NPC runtime validation failed:', error);
@@ -1330,12 +1189,12 @@ doorsButton.addEventListener('click', () => {
 
 npcMotionButton.addEventListener('click', () => {
   npcMotionEnabled = !npcMotionEnabled;
-  npcMotionButton.textContent = npcMotionEnabled ? 'NPC 漫步：开' : 'NPC 漫步：关';
+  npcMotionButton.textContent = npcMotionEnabled ? 'NPC 漫步：开' : 'NPC Mixamo：关';
   npcMotionButton.classList.toggle('active', npcMotionEnabled);
   livingRoomNpcController?.setEnabled(npcMotionEnabled);
   status.textContent = npcMotionEnabled
-    ? '写实 NPC：漫步动作测试中 · 门可交互'
-    : '写实 NPC：动作已暂停 · 门可交互';
+    ? '写实 NPC：Mixamo 漫步中 · 门可交互'
+    : '写实 NPC：Mixamo 动画已暂停 · 门可交互';
 });
 npcMotionButton.classList.toggle('active', npcMotionEnabled);
 
@@ -1621,7 +1480,6 @@ window.addEventListener('resize', onResize);
 
 renderer.setAnimationLoop(() => {
   const delta = clock.getDelta();
-  npcMixers.forEach((mixer) => mixer.update(delta));
   livingRoomNpcController?.update(delta, clock.elapsedTime);
   const idleTime = clock.elapsedTime;
   whaleGirl.position.y = whaleGirl.userData.idleBaseY + Math.sin(idleTime * 2.0) * 0.012;
