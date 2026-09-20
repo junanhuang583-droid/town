@@ -15,7 +15,6 @@ app.innerHTML = [
   '<span data-role="status">高质量写实 NPC 加载中 · 屋顶显示</span>',
   '<span data-role="anime-status">二次元 NPC：加载中</span>',
   '</section>',
-  '<a class="back-town" href="../">返回 Town</a>',
   '<section class="house-toolbar">',
   '<button data-action="reset-view">重置视角</button>',
   '<button data-action="first-person">第一视角</button>',
