@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import './houseLab.css';
 
 const app = document.querySelector('#app');
@@ -10,10 +9,10 @@ const app = document.querySelector('#app');
 app.innerHTML = [
   '<div class="house-viewport" data-role="viewport"></div>',
   '<section class="house-panel">',
-  '<strong>Town · 房屋实验场 v0.9</strong>',
-  '<span>单层住宅样板 · 写实 / 二次元 NPC 对比</span>',
+  '<strong>Town · 房屋实验场 v1.0</strong>',
+  '<span>单层住宅样板 · 写实 NPC / Q版鲸鱼娘</span>',
   '<span data-role="status">高质量写实 NPC 加载中 · 屋顶显示</span>',
-  '<span data-role="anime-status">二次元 NPC：加载中</span>',
+  '<span data-role="whale-status">鲸鱼娘：生成中</span>',
   '</section>',
   '<section class="house-toolbar">',
   '<button data-action="reset-view">重置视角</button>',
@@ -38,7 +37,7 @@ app.innerHTML = [
 
 const viewport = app.querySelector('[data-role="viewport"]');
 const status = app.querySelector('[data-role="status"]');
-const animeStatus = app.querySelector('[data-role="anime-status"]');
+const whaleStatus = app.querySelector('[data-role="whale-status"]');
 const roofButton = app.querySelector('[data-action="roof"]');
 const doorsButton = app.querySelector('[data-action="doors"]');
 const firstPersonButton = app.querySelector('[data-action="first-person"]');
@@ -79,7 +78,6 @@ const fpTouchMove = new Set();
 let fpLookPointer = null;
 const clock = new THREE.Clock();
 const npcMixers = [];
-const npcVrms = [];
 
 scene.add(new THREE.HemisphereLight(0xffffff, 0x687077, 2.05));
 
@@ -519,257 +517,150 @@ function loadLivingRoomNpc() {
 
 loadLivingRoomNpc();
 
-const ANIME_NPC_URL =
-  'https://cdn.jsdelivr.net/gh/iamenahs/xlunar-ai-avatar@5e368bfff897d73090519f9f696c631a52d77397/public/avatars/VRoid_Sample_A.glb';
+function createWhaleGirl() {
+  const root = new THREE.Group();
+  root.name = 'bedroom-door-chibi-whale-girl-v10';
 
-function poseAnimeNpc(vrm) {
-  const humanoid = vrm?.humanoid;
-  if (!humanoid) return false;
+  const model = new THREE.Group();
+  root.add(model);
 
-  const leftUpperArm = humanoid.getNormalizedBoneNode('leftUpperArm');
-  const rightUpperArm = humanoid.getNormalizedBoneNode('rightUpperArm');
-  const leftLowerArm = humanoid.getNormalizedBoneNode('leftLowerArm');
-  const rightLowerArm = humanoid.getNormalizedBoneNode('rightLowerArm');
-  const head = humanoid.getNormalizedBoneNode('head');
-  const neck = humanoid.getNormalizedBoneNode('neck');
+  const mat = (color, roughness = 0.72, metalness = 0) =>
+    new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
-  if (!leftUpperArm || !rightUpperArm || !leftLowerArm || !rightLowerArm) {
-    return false;
-  }
+  const skin = mat('#ffd8c8', 0.82);
+  const blush = mat('#f3a7aa', 0.72);
+  const eyeDark = mat('#133957', 0.36);
+  const eyeLight = mat('#72d7ec', 0.28);
+  const hairDark = mat('#245a89', 0.68);
+  const hairMid = mat('#3f91ba', 0.65);
+  const hairLight = mat('#83d7e9', 0.62);
+  const dress = mat('#183b66', 0.8);
+  const dressMid = mat('#285985', 0.78);
+  const white = mat('#f5f7f4', 0.9);
+  const accent = mat('#5fcce2', 0.55);
+  const shoe = mat('#17314c', 0.76);
+  const mouth = mat('#c9737f', 0.78);
 
-  // VRM normalized bones are in a common humanoid coordinate system. Lower
-  // the T-pose arms into a quiet, slightly soft standing pose.
-  leftUpperArm.rotation.set(0.05, 0.02, -1.18);
-  rightUpperArm.rotation.set(0.05, -0.02, 1.18);
-  leftLowerArm.rotation.set(0.02, 0, -0.16);
-  rightLowerArm.rotation.set(0.02, 0, 0.16);
-
-  if (neck) neck.rotation.set(0.01, -0.03, 0.015);
-  if (head) head.rotation.set(0.02, -0.06, 0.035);
-
-  vrm.update(0);
-  vrm.scene.updateMatrixWorld(true);
-  return true;
-}
-
-function inspectAnimeNpc(vrm) {
-  const materials = new Set();
-  const textures = new Set();
-  let meshCount = 0;
-  let skinnedMeshCount = 0;
-  let boneCount = 0;
-
-  vrm.scene.traverse((object) => {
-    if (object.isBone) boneCount += 1;
-    if (!object.isMesh && !object.isSkinnedMesh) return;
-
-    meshCount += 1;
-    if (object.isSkinnedMesh) skinnedMeshCount += 1;
-
-    const list = Array.isArray(object.material)
-      ? object.material
-      : object.material
-        ? [object.material]
-        : [];
-
-    list.forEach((material) => {
-      materials.add(material);
-      [
-        material.map,
-        material.normalMap,
-        material.emissiveMap,
-        material.alphaMap
-      ].forEach((texture) => {
-        if (texture) textures.add(texture);
-      });
-    });
-  });
-
-  const box = new THREE.Box3().setFromObject(vrm.scene);
-  const size = box.getSize(new THREE.Vector3());
-
-  const essentialBones = [
-    'hips',
-    'head',
-    'leftUpperArm',
-    'rightUpperArm',
-    'leftUpperLeg',
-    'rightUpperLeg'
-  ];
-  const humanoidReady = essentialBones.every(
-    (name) => !!vrm.humanoid?.getNormalizedBoneNode(name)
-  );
-
-  return {
-    valid:
-      humanoidReady &&
-      meshCount >= 1 &&
-      skinnedMeshCount >= 1 &&
-      boneCount >= 20 &&
-      materials.size >= 1 &&
-      Number.isFinite(size.y) &&
-      size.y > 1.45 &&
-      size.y < 1.72,
-    humanoidReady,
-    meshCount,
-    skinnedMeshCount,
-    boneCount,
-    materialCount: materials.size,
-    textureCount: textures.size,
-    size
+  const add = (geometry, material, x, y, z, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0, parent = model) => {
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(x, y, z);
+    mesh.scale.set(sx, sy, sz);
+    mesh.rotation.set(rx, ry, rz);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    parent.add(mesh);
+    return mesh;
   };
+
+  const sphere = (r, material, x, y, z, sx = 1, sy = 1, sz = 1, parent = model) =>
+    add(new THREE.SphereGeometry(r, 24, 18), material, x, y, z, sx, sy, sz, 0, 0, 0, parent);
+
+  const capsule = (r, length, material, x, y, z, rx = 0, ry = 0, rz = 0, parent = model) =>
+    add(new THREE.CapsuleGeometry(r, length, 6, 12), material, x, y, z, 1, 1, 1, rx, ry, rz, parent);
+
+  // Feet and legs. Total character height is about 1.30 m, close to 3.2 heads.
+  add(new THREE.SphereGeometry(0.105, 18, 12), shoe, -0.105, 0.09, 0.055, 1.15, 0.62, 1.5);
+  add(new THREE.SphereGeometry(0.105, 18, 12), shoe, 0.105, 0.09, 0.055, 1.15, 0.62, 1.5);
+  capsule(0.06, 0.20, white, -0.10, 0.27, 0, 0, 0, 0.025);
+  capsule(0.06, 0.20, white, 0.10, 0.27, 0, 0, 0, -0.025);
+
+  // Dress body and skirt.
+  add(new THREE.CylinderGeometry(0.15, 0.205, 0.30, 20), dress, 0, 0.53, 0);
+  add(new THREE.CylinderGeometry(0.18, 0.31, 0.31, 24), dressMid, 0, 0.37, 0);
+  add(new THREE.TorusGeometry(0.255, 0.028, 8, 28), white, 0, 0.245, 0, 1, 0.42, 1, Math.PI / 2);
+
+  // White maid apron and collar.
+  add(new THREE.SphereGeometry(0.16, 20, 14), white, 0, 0.49, 0.168, 0.82, 1.02, 0.16);
+  add(new THREE.BoxGeometry(0.22, 0.045, 0.035), white, 0, 0.675, 0.15, 1, 1, 1, 0, 0, 0.03);
+  sphere(0.055, accent, -0.055, 0.63, 0.19, 1.25, 0.62, 0.55);
+  sphere(0.055, accent, 0.055, 0.63, 0.19, 1.25, 0.62, 0.55);
+
+  // Puffy maid sleeves, short arms and hands.
+  sphere(0.105, white, -0.23, 0.58, 0, 1.05, 0.9, 1);
+  sphere(0.105, white, 0.23, 0.58, 0, 1.05, 0.9, 1);
+  capsule(0.045, 0.17, skin, -0.255, 0.45, 0.025, 0, 0, 0.16);
+  capsule(0.045, 0.17, skin, 0.255, 0.45, 0.025, 0, 0, -0.16);
+  sphere(0.055, skin, -0.272, 0.335, 0.035);
+  sphere(0.055, skin, 0.272, 0.335, 0.035);
+
+  // Long hair mass behind the head. Light lower locks create the blue -> cyan gradient.
+  sphere(0.245, hairDark, 0, 0.995, -0.055, 1.12, 1.12, 0.92);
+  capsule(0.085, 0.40, hairMid, -0.18, 0.77, -0.075, 0, 0, 0.03);
+  capsule(0.085, 0.40, hairMid, 0.18, 0.77, -0.075, 0, 0, -0.03);
+  capsule(0.067, 0.28, hairLight, -0.19, 0.60, -0.078, 0, 0, 0.02);
+  capsule(0.067, 0.28, hairLight, 0.19, 0.60, -0.078, 0, 0, -0.02);
+  capsule(0.065, 0.33, hairMid, -0.085, 0.70, -0.115, 0, 0, -0.02);
+  capsule(0.065, 0.33, hairMid, 0.085, 0.70, -0.115, 0, 0, 0.02);
+
+  // Large chibi face, slightly in front of the hair shell.
+  sphere(0.225, skin, 0, 1.045, 0.055, 1.0, 1.04, 0.94);
+
+  // Bangs.
+  sphere(0.10, hairDark, -0.115, 1.205, 0.185, 1.0, 1.25, 0.38);
+  sphere(0.11, hairMid, 0.0, 1.235, 0.185, 1.0, 1.28, 0.38);
+  sphere(0.10, hairDark, 0.115, 1.205, 0.185, 1.0, 1.25, 0.38);
+
+  // Whale-fin ears.
+  add(new THREE.ConeGeometry(0.10, 0.27, 8), accent, -0.275, 1.08, 0.025, 1, 1, 0.42, 0, 0, -1.28);
+  add(new THREE.ConeGeometry(0.10, 0.27, 8), accent, 0.275, 1.08, 0.025, 1, 1, 0.42, 0, 0, 1.28);
+  sphere(0.042, hairLight, -0.255, 1.10, 0.04, 1.0, 0.78, 0.55);
+  sphere(0.042, hairLight, 0.255, 1.10, 0.04, 1.0, 0.78, 0.55);
+
+  // Big glossy anime eyes, highlights, blush and tiny smile.
+  sphere(0.062, eyeDark, -0.085, 1.055, 0.255, 0.78, 1.16, 0.34);
+  sphere(0.062, eyeDark, 0.085, 1.055, 0.255, 0.78, 1.16, 0.34);
+  sphere(0.025, eyeLight, -0.083, 1.070, 0.275, 0.78, 1.0, 0.28);
+  sphere(0.025, eyeLight, 0.087, 1.070, 0.275, 0.78, 1.0, 0.28);
+  sphere(0.013, white, -0.100, 1.095, 0.285, 0.72, 0.72, 0.20);
+  sphere(0.013, white, 0.070, 1.095, 0.285, 0.72, 0.72, 0.20);
+  sphere(0.035, blush, -0.145, 0.995, 0.255, 1.35, 0.45, 0.22);
+  sphere(0.035, blush, 0.145, 0.995, 0.255, 1.35, 0.45, 0.22);
+  sphere(0.018, mouth, 0, 0.978, 0.278, 1.1, 0.48, 0.30);
+
+  // Maid headband.
+  add(new THREE.TorusGeometry(0.165, 0.022, 7, 24, Math.PI), white, 0, 1.265, 0.045, 1, 1, 0.68, Math.PI / 2, 0, 0);
+
+  // Whale tail: thick stem plus two broad flukes behind the skirt.
+  const tail = new THREE.Group();
+  tail.position.set(0, 0.43, -0.19);
+  tail.rotation.x = THREE.MathUtils.degToRad(-17);
+  model.add(tail);
+  capsule(0.075, 0.30, hairMid, 0, -0.04, -0.13, Math.PI / 2, 0, 0, tail);
+  sphere(0.16, hairDark, -0.12, -0.08, -0.30, 1.35, 0.52, 0.40, tail).rotation.z = 0.40;
+  sphere(0.16, hairDark, 0.12, -0.08, -0.30, 1.35, 0.52, 0.40, tail).rotation.z = -0.40;
+  sphere(0.105, hairLight, -0.145, -0.075, -0.322, 1.0, 0.28, 0.22, tail).rotation.z = 0.40;
+  sphere(0.105, hairLight, 0.145, -0.075, -0.322, 1.0, 0.28, 0.22, tail).rotation.z = -0.40;
+
+  // Small aqua gem on the apron as a DeepSeek-ish ocean accent.
+  add(new THREE.OctahedronGeometry(0.045, 0), accent, 0, 0.525, 0.235);
+
+  // Ground / centre the model before placing it in the house.
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  model.position.x -= center.x;
+  model.position.z -= center.z;
+  model.position.y -= box.min.y;
+  model.updateMatrixWorld(true);
+
+  root.userData.idleBaseY = 0.61;
+  root.userData.tail = tail;
+  return root;
 }
 
-function loadBedroomAnimeNpc() {
-  const loader = new GLTFLoader();
-  loader.setMeshoptDecoder(MeshoptDecoder);
-  loader.setCrossOrigin('anonymous');
-  loader.register((parser) => new VRMLoaderPlugin(parser, {
-    autoUpdateHumanBones: true
-  }));
+const whaleGirl = createWhaleGirl();
+whaleGirl.position.set(0.30, 0.61, -1.08);
+whaleGirl.rotation.y = THREE.MathUtils.degToRad(-66);
+house.add(whaleGirl);
 
-  loader.load(
-    ANIME_NPC_URL,
-    (gltf) => {
-      try {
-        const vrm = gltf.userData?.vrm;
-        if (!vrm) throw new Error('VRM extension was not parsed');
-
-        // Official three-vrm setup for VRoid / VRM0 characters.
-        VRMUtils.removeUnnecessaryVertices(gltf.scene);
-        VRMUtils.combineSkeletons(gltf.scene);
-        VRMUtils.combineMorphs(vrm);
-        VRMUtils.rotateVRM0(vrm);
-
-        const maxAnisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
-        vrm.scene.traverse((object) => {
-          object.frustumCulled = false;
-          if (!object.isMesh && !object.isSkinnedMesh) return;
-
-          object.castShadow = true;
-          object.receiveShadow = true;
-
-          const list = Array.isArray(object.material)
-            ? object.material
-            : object.material
-              ? [object.material]
-              : [];
-
-          list.forEach((material) => {
-            [
-              material.map,
-              material.normalMap,
-              material.emissiveMap,
-              material.alphaMap
-            ].forEach((texture) => {
-              if (texture) texture.anisotropy = maxAnisotropy;
-            });
-            material.needsUpdate = true;
-          });
-        });
-
-        // Normalize this avatar to a slightly petite but still adult scale.
-        vrm.scene.updateMatrixWorld(true);
-        const originalBox = new THREE.Box3().setFromObject(vrm.scene);
-        const originalHeight = originalBox.max.y - originalBox.min.y;
-        if (!Number.isFinite(originalHeight) || originalHeight < 0.5) {
-          throw new Error('invalid anime avatar height');
-        }
-
-        vrm.scene.scale.setScalar(1.60 / originalHeight);
-        vrm.scene.updateMatrixWorld(true);
-
-        let box = new THREE.Box3().setFromObject(vrm.scene);
-        let center = box.getCenter(new THREE.Vector3());
-        vrm.scene.position.x -= center.x;
-        vrm.scene.position.z -= center.z;
-        vrm.scene.position.y -= box.min.y;
-        vrm.scene.updateMatrixWorld(true);
-
-        const poseOk = poseAnimeNpc(vrm);
-        if (!poseOk) throw new Error('humanoid arm pose unavailable');
-
-        // Pose changes the bounding box; re-center and ground once more.
-        box = new THREE.Box3().setFromObject(vrm.scene);
-        center = box.getCenter(new THREE.Vector3());
-        vrm.scene.position.x -= center.x;
-        vrm.scene.position.z -= center.z;
-        vrm.scene.position.y -= box.min.y;
-        vrm.scene.updateMatrixWorld(true);
-
-        const qa = inspectAnimeNpc(vrm);
-        if (!qa.valid) {
-          throw new Error(
-            'anime QA failed: ' +
-            JSON.stringify({
-              humanoidReady: qa.humanoidReady,
-              meshCount: qa.meshCount,
-              skinnedMeshCount: qa.skinnedMeshCount,
-              boneCount: qa.boneCount,
-              materialCount: qa.materialCount,
-              textureCount: qa.textureCount,
-              height: Number(qa.size.y.toFixed(3))
-            })
-          );
-        }
-
-        const animeRoot = new THREE.Group();
-        animeRoot.name = 'bedroom-door-anime-npc-v09';
-        // Living-room side of the bedroom doorway: visible from the overview,
-        // but outside the bedroom's large bed footprint and clear of the door.
-        animeRoot.position.set(0.28, 0.61, -1.10);
-        animeRoot.rotation.y = THREE.MathUtils.degToRad(-66);
-        animeRoot.add(vrm.scene);
-        house.add(animeRoot);
-
-        npcVrms.push(vrm);
-        animeStatus.textContent = '二次元 NPC：已加载 · 卧室门口';
-        window.__HOUSE_LAB_ANIME_QA__ = {
-          ok: true,
-          model: 'VRoid Beta Sample A (CC0)',
-          source: ANIME_NPC_URL,
-          humanoidReady: qa.humanoidReady,
-          meshCount: qa.meshCount,
-          skinnedMeshCount: qa.skinnedMeshCount,
-          boneCount: qa.boneCount,
-          materialCount: qa.materialCount,
-          textureCount: qa.textureCount,
-          height: Number(qa.size.y.toFixed(3)),
-          position: [0.28, 0.61, -1.10]
-        };
-      } catch (error) {
-        console.error('Anime bedroom-door NPC validation failed:', error);
-        window.__HOUSE_LAB_ANIME_QA__ = {
-          ok: false,
-          stage: 'runtime-validation',
-          error: String(error?.message || error)
-        };
-        animeStatus.textContent =
-          '二次元 NPC：验收失败 · ' + String(error?.message || error).slice(0, 44);
-      }
-    },
-    (event) => {
-      if (!event.total) {
-        animeStatus.textContent = '二次元 NPC：下载中';
-        return;
-      }
-      const pct = Math.min(99, Math.round((event.loaded / event.total) * 100));
-      animeStatus.textContent = '二次元 NPC：下载中 ' + pct + '%';
-    },
-    (error) => {
-      console.error('Anime bedroom-door NPC failed to load:', error);
-      const message = String(error?.message || error || 'unknown error');
-      window.__HOUSE_LAB_ANIME_QA__ = {
-        ok: false,
-        stage: 'network-or-parse',
-        error: message
-      };
-      animeStatus.textContent = '二次元 NPC：加载失败 · ' + message.slice(0, 44);
-    }
-  );
-}
-
-loadBedroomAnimeNpc();
+whaleStatus.textContent = '鲸鱼娘：已生成 · 卧室门口';
+window.__HOUSE_LAB_WHALE_GIRL_QA__ = {
+  ok: true,
+  kind: 'procedural chibi whale girl',
+  targetHeadRatio: 3.2,
+  position: [0.30, 0.61, -1.08],
+  externalModel: false
+};
 
 function box(parent, width, height, depth, mat, x, y, z, rotationY = 0) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mat);
@@ -1474,7 +1365,12 @@ window.addEventListener('resize', onResize);
 renderer.setAnimationLoop(() => {
   const delta = clock.getDelta();
   npcMixers.forEach((mixer) => mixer.update(delta));
-  npcVrms.forEach((vrm) => vrm.update(delta));
+  const idleTime = clock.elapsedTime;
+  whaleGirl.position.y = whaleGirl.userData.idleBaseY + Math.sin(idleTime * 2.0) * 0.012;
+  whaleGirl.rotation.z = Math.sin(idleTime * 1.25) * 0.012;
+  if (whaleGirl.userData.tail) {
+    whaleGirl.userData.tail.rotation.y = Math.sin(idleTime * 1.7) * 0.13;
+  }
 
   if (firstPerson) updateFirstPerson(delta);
   else controls.update();
