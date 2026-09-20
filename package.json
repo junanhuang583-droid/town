@@ -8,8 +8,7 @@
     "build": "vite build"
   },
   "dependencies": {
-    "three": "^0.180.0",
-    "@pixiv/three-vrm": "^3.5.5"
+    "three": "^0.180.0"
   },
   "devDependencies": {
     "vite": "^7.1.0"
